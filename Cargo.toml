@@ -2,6 +2,13 @@
 name = "typst-as-lib"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Small wrapper for typst that allows using it as a templating engine."
+homepage = "https://github.com/Relacibo/typst-as-lib"
+repository = "https://github.com/Relacibo/typst-as-lib"
+readme = "README.md"
+keywords = ["template", "typst"]
+categories = ["template-engine"]
 
 [dependencies]
 chrono = "0.4.38"
