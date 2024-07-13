@@ -63,7 +63,7 @@ impl TypstTemplate {
     /// let file_id = FileId::new(None, VirtualPath::new("/images/image.png"))
     /// let other_files: HashMap<FileId, Bytes> =
     ///     std::iter::once((file_id, IMAGE.to_owned())).collect();
-    /// template = template.with_other_binary_files(other_files);
+    /// template = template.with_binary_files(other_files);
     /// ```
     pub fn with_binary_files(self, files: HashMap<FileId, &[u8]>) -> Self {
         Self {
