@@ -85,3 +85,7 @@ struct ContentElement {
 ]
 ```
 
+## Some links, idk
+- [https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs](https://github.com/tfachmann/typst-as-library/tree/main)
+- [https://github.com/KillTheMule/derive_typst_intoval](https://github.com/KillTheMule/derive_typst_intoval)
+
