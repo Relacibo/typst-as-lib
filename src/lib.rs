@@ -187,6 +187,13 @@ impl From<FileId> for FileIdNewType {
     }
 }
 
+impl From<FileIdNewType> for FileId {
+    fn from(file_id: FileIdNewType) -> Self {
+        let FileIdNewType(file_id) = file_id;
+        file_id
+    }
+}
+
 impl From<&str> for FileIdNewType {
     fn from(value: &str) -> Self {
         FileIdNewType(FileId::new(None, VirtualPath::new(value)))
@@ -205,6 +212,13 @@ pub struct SourceNewType(Source);
 impl From<Source> for SourceNewType {
     fn from(source: Source) -> Self {
         SourceNewType(source)
+    }
+}
+
+impl From<SourceNewType> for Source {
+    fn from(source: SourceNewType) -> Self {
+        let SourceNewType(source) = source;
+        source
     }
 }
 
@@ -236,6 +250,13 @@ pub struct SourceNotDetachedNewType(Source);
 impl From<Source> for SourceNotDetachedNewType {
     fn from(source: Source) -> Self {
         SourceNotDetachedNewType(source)
+    }
+}
+
+impl From<SourceNotDetachedNewType> for Source {
+    fn from(source: SourceNotDetachedNewType) -> Self {
+        let SourceNotDetachedNewType(source) = source;
+        source
     }
 }
 
