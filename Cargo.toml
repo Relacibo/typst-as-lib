@@ -1,0 +1,13 @@
+[package]
+name = "typst-as-lib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.38"
+comemo = "0.4.0"
+typst = "0.11.1"
+
+[dev-dependencies]
+derive_typst_intoval = "0.2.1"
+typst-pdf = "0.11.1"
