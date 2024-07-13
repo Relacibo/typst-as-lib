@@ -13,9 +13,7 @@ use typst::Library;
 #[derive(Debug, Clone)]
 pub struct TypstTemplate {
     book: Prehashed<FontBook>,
-
     source: Source,
-
     fonts: Vec<Font>,
 }
 
