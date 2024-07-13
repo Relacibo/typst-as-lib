@@ -10,8 +10,19 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+
+    // Read in fonts and the main source file. It will be assigned the id "/template.typ".
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE.to_owned());
 
+    // optionally pass in some additional source files.
+    // `other_sources` is of type `HashMap<FileId, String>`.
+    // template = template.with_other_sources(other_sources);
+
+    // optionally pass in some additional binary files.
+    // `files` is of type `HashMap<FileId, &[u8]>`.
+    // template = template.with_binary_files(files);
+
+    // Some dummy content. We use `derive_typst_intoval` to easily create `Dict`s from structs by deriving `IntoDict`;
     let content = Content {
         v: vec![
             ContentElement {
@@ -30,10 +41,12 @@ fn main() {
 
     let mut tracer = Default::default();
 
+    // Run it
     let doc = template
-        .compile(&mut tracer, content.into_dict())
-        .expect("Something went wrong!");
+        .compile_with_input(&mut tracer, content.into_dict())
+        .expect("typst::compile() returned an error!");
 
+    // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
     fs::write("./output.pdf", pdf).expect("Could not write pdf.");
 }
