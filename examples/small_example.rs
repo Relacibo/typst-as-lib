@@ -13,7 +13,7 @@ fn main() {
 
     // Read in fonts and the main source file. It will be assigned the id "/template.typ".
     // We can use this template more than once, if needed (Possibly with different input each time).
-    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+    let template = TypstTemplate::new_from_string(vec![font], TEMPLATE_FILE);
 
     // optionally pass in some additional source files.
     // template = template.add_other_sources_from_strings(other_sources);

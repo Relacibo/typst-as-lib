@@ -22,8 +22,23 @@ pub struct TypstTemplate {
 }
 
 impl TypstTemplate {
-    /// Read in fonts and the main source file. It will have the id: `/template.typ`.
+    /// Initialize with fonts and a given source.
     pub fn new<S>(fonts: Vec<Font>, source: S) -> Self
+    where
+        S: Into<Source>,
+    {
+        Self {
+            book: Prehashed::new(FontBook::from_fonts(&fonts)),
+            source: source.into(),
+            fonts,
+            other_sources: Default::default(),
+            files: Default::default(),
+        }
+    }
+
+    /// Initialize with fonts and string that will be converted to a source. 
+    /// It will have the virtual path: `/template.typ`.
+    pub fn new_from_string<S>(fonts: Vec<Font>, source: S) -> Self
     where
         S: Into<String>,
     {
@@ -45,7 +60,8 @@ impl TypstTemplate {
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// template = template.add_other_sources_from_strings([(file_id, OTHER_SOURCE)]);
+    /// let tuple = (file_id, OTHER_SOURCE);
+    /// template = template.add_other_sources_from_strings([tuple]);
     /// ```
     pub fn add_other_sources_from_strings<I, S>(mut self, other_sources: I) -> Self
     where
@@ -65,7 +81,8 @@ impl TypstTemplate {
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// template = template.add_other_sources([Source::new(file_id, OTHER_SOURCE.into())]);
+    /// let source = Source::new(file_id, OTHER_SOURCE.into());
+    /// template = template.add_other_sources([source]);
     /// ```
     pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
     where
@@ -86,7 +103,8 @@ impl TypstTemplate {
     /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/images/image.png"))
-    /// template = template.add_binary_files([(file_id, IMAGE)]);
+    /// let tuple = (file_id, IMAGE);
+    /// template = template.add_binary_files([tuple]);
     /// ```
     pub fn add_binary_files<'a, I, B>(mut self, files: I) -> Self
     where

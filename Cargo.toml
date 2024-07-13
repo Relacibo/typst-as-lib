@@ -1,6 +1,6 @@
 [package]
 name = "typst-as-lib"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Small wrapper for typst that makes it easier to use it as a templating engine"
