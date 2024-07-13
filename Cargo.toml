@@ -9,6 +9,9 @@ repository = "https://github.com/Relacibo/typst-as-lib"
 readme = "README.md"
 keywords = ["template", "typst"]
 categories = ["template-engine"]
+exclude = [
+    "examples/*",
+]
 
 [dependencies]
 chrono = "0.4.38"
