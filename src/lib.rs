@@ -16,8 +16,8 @@ use typst::Library;
 pub struct TypstTemplate {
     book: Prehashed<FontBook>,
     source: Source,
-    other_sources: Option<HashMap<FileId, Source>>,
-    files: Option<HashMap<FileId, Bytes>>,
+    other_sources: HashMap<FileId, Source>,
+    files: HashMap<FileId, Bytes>,
     fonts: Vec<Font>,
 }
 
@@ -34,52 +34,68 @@ impl TypstTemplate {
                 source.into(),
             ),
             fonts,
-            other_sources: None,
-            files: None,
+            other_sources: Default::default(),
+            files: Default::default(),
         }
     }
 
-    /// Set sources for template
+    /// Add sources for template
     /// Example:
     /// ```rust
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// template = template.with_other_sources([(file_id, OTHER_SOURCE)]);
+    /// template = template.add_other_sources_from_strings([(file_id, OTHER_SOURCE)]);
     /// ```
-    pub fn with_other_sources<I, S>(self, other_sources: I) -> Self
+    pub fn add_other_sources_from_strings<I, S>(mut self, other_sources: I) -> Self
     where
         I: IntoIterator<Item = (FileId, S)>,
         S: Into<String>,
     {
-        Self {
-            other_sources: Some(
-                other_sources
-                    .into_iter()
-                    .map(|(id, s)| (id, Source::new(id, s.into())))
-                    .collect(),
-            ),
-            ..self
-        }
+        let new_other_sources = other_sources
+            .into_iter()
+            .map(|(id, s)| (id, Source::new(id, s.into())));
+        self.other_sources.extend(new_other_sources);
+        self
     }
 
-    /// Set binary files for template
+    /// Add sources for template
+    /// Example:
+    /// ```rust
+    /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
+    /// // ...
+    /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
+    /// template = template.add_other_sources_from_strings([Source::new(file_id, OTHER_SOURCE.into())]);
+    /// ```
+    pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Source>,
+    {
+        let new_other_sources = other_sources.into_iter().map(|s| {
+            let source: Source = s.into();
+            (source.id(), source)
+        });
+        self.other_sources.extend(new_other_sources);
+        self
+    }
+
+    /// Add binary files for template
     /// Example:
     /// ```rust
     /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/images/image.png"))
-    /// template = template.with_binary_files([(file_id, IMAGE)]);
+    /// template = template.add_binary_files([(file_id, IMAGE)]);
     /// ```
-    pub fn with_binary_files<'a, I, B>(self, files: I) -> Self
+    pub fn add_binary_files<'a, I, B>(mut self, files: I) -> Self
     where
         I: IntoIterator<Item = (FileId, B)>,
         B: Into<Bytes>,
     {
-        Self {
-            files: Some(files.into_iter().map(|(id, b)| (id, b.into())).collect()),
-            ..self
-        }
+        let new_files = files.into_iter().map(|(id, b)| (id, b.into()));
+        self.files.extend(new_files);
+        self
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -126,20 +142,12 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        fn get_file_helper(
-            other_sources: &Option<HashMap<FileId, Source>>,
-            id: FileId,
-        ) -> Option<Source> {
-            let other_sources = other_sources.as_ref()?;
-            other_sources.get(&id).cloned()
-        }
-
         let TypstWorld {
             template: TypstTemplate { other_sources, .. },
             ..
         } = self;
 
-        if let Some(source) = get_file_helper(other_sources, id) {
+        if let Some(source) = other_sources.get(&id).cloned() {
             return Ok(source);
         }
 
@@ -153,28 +161,15 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        fn get_file_helper(
-            other_files: &Option<HashMap<FileId, Bytes>>,
-            id: FileId,
-        ) -> Option<Bytes> {
-            let other_files = other_files.as_ref()?;
-            other_files.get(&id).cloned()
-        }
-
         let TypstWorld {
-            template: TypstTemplate {
-                files: other_files, ..
-            },
+            template: TypstTemplate { files, .. },
             ..
         } = self;
 
-        if let Some(file) = get_file_helper(other_files, id) {
-            return Ok(file);
-        }
-
-        Err(FileError::NotFound(
-            id.vpath().as_rooted_path().to_path_buf(),
-        ))
+        files
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| FileError::NotFound(id.vpath().as_rooted_path().to_path_buf()))
     }
 
     fn font(&self, id: usize) -> Option<Font> {

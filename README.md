@@ -33,10 +33,10 @@ fn main() {
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
     // optionally pass in some additional source files.
-    // template = template.with_other_sources(other_sources);
+    // template = template.add_other_sources_from_strings(other_sources);
 
     // optionally pass in some additional binary files.
-    // template = template.with_binary_files(files);
+    // template = template.add_binary_files(files);
 
     // Some dummy content. We use `derive_typst_intoval` to easily 
     // create `Dict`s from structs by deriving `IntoDict`;
