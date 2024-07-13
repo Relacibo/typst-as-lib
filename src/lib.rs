@@ -23,10 +23,16 @@ pub struct TypstTemplate {
 
 impl TypstTemplate {
     /// Read in fonts and the main source file. It will have the id: `/template.typ`.
-    pub fn new(fonts: Vec<Font>, source: String) -> Self {
+    pub fn new<S>(fonts: Vec<Font>, source: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
-            source: Source::new(FileId::new(None, VirtualPath::new("/template.typ")), source),
+            source: Source::new(
+                FileId::new(None, VirtualPath::new("/template.typ")),
+                source.into(),
+            ),
             fonts,
             other_sources: None,
             files: None,
@@ -39,16 +45,18 @@ impl TypstTemplate {
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// let other_sources: HashMap<FileId, String> =
-    ///     std::iter::once((file_id, OTHER_SOURCE.to_owned())).collect();
-    /// template = template.with_other_sources(other_sources);
+    /// template = template.with_other_sources([(file_id, OTHER_SOURCE)]);
     /// ```
-    pub fn with_other_sources(self, other_sources: HashMap<FileId, String>) -> Self {
+    pub fn with_other_sources<I, S>(self, other_sources: I) -> Self
+    where
+        I: IntoIterator<Item = (FileId, S)>,
+        S: Into<String>,
+    {
         Self {
             other_sources: Some(
                 other_sources
                     .into_iter()
-                    .map(|(id, s)| (id, Source::new(id, s)))
+                    .map(|(id, s)| (id, Source::new(id, s.into())))
                     .collect(),
             ),
             ..self
@@ -61,26 +69,26 @@ impl TypstTemplate {
     /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/images/image.png"))
-    /// let other_files: HashMap<FileId, Bytes> =
-    ///     std::iter::once((file_id, IMAGE.to_owned())).collect();
-    /// template = template.with_binary_files(other_files);
+    /// template = template.with_binary_files([(file_id, IMAGE)]);
     /// ```
-    pub fn with_binary_files(self, files: HashMap<FileId, &[u8]>) -> Self {
+    pub fn with_binary_files<'a, I, B>(self, files: I) -> Self
+    where
+        I: IntoIterator<Item = (FileId, B)>,
+        B: Into<Bytes>,
+    {
         Self {
-            files: Some(
-                files
-                    .into_iter()
-                    .map(|(id, b)| (id, Bytes::from(b)))
-                    .collect(),
-            ),
+            files: Some(files.into_iter().map(|(id, b)| (id, b.into())).collect()),
             ..self
         }
     }
 
-    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible 
+    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
-    pub fn compile_with_input(&self, tracer: &mut Tracer, input: Dict) -> SourceResult<Document> {
-        let library = Prehashed::new(Library::builder().with_inputs(input).build());
+    pub fn compile_with_input<D>(&self, tracer: &mut Tracer, input: D) -> SourceResult<Document>
+    where
+        D: Into<Dict>,
+    {
+        let library = Prehashed::new(Library::builder().with_inputs(input.into()).build());
         let world = TypstWorld {
             library,
             template: self,
