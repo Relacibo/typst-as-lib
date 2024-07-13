@@ -42,7 +42,8 @@ fn main() {
     // `files` is of type `HashMap<FileId, &[u8]>`.
     // template = template.with_binary_files(files);
 
-    // Some dummy content. We use `derive_typst_intoval` to easily create `Dict`s from structs by deriving `IntoDict`;
+    // Some dummy content. We use `derive_typst_intoval` to 
+    // easily create `Dict`s from structs by deriving `IntoDict`;
     let content = Content {
         v: vec![
             ContentElement {
