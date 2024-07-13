@@ -65,7 +65,7 @@ impl TypstTemplate {
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
     /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// template = template.add_other_sources_from_strings([Source::new(file_id, OTHER_SOURCE.into())]);
+    /// template = template.add_other_sources([Source::new(file_id, OTHER_SOURCE.into())]);
     /// ```
     pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
     where
