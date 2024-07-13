@@ -8,18 +8,25 @@ static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
 
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
+// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
+
+// static IMAGE: &[u8] = include_bytes!("./images/image.png");
+
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
-    // Read in fonts and the main source file. It will be assigned the id "/template.typ".
+    // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly with different input each time).
-    let template = TypstTemplate::new_from_string(vec![font], TEMPLATE_FILE);
+    #[allow(unused_mut)]
+    let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE.to_owned());
 
     // optionally pass in some additional source files.
-    // template = template.add_other_sources_from_strings(other_sources);
+    // let source = ("/other_source.typ", OTHER_SOURCE.to_owned());    
+    // template = template.add_other_sources([source]);
 
     // optionally pass in some additional binary files.
-    // template = template.add_binary_files(files);
+    // let tuple = ("/images/image.png", IMAGE);
+    // template = template.add_binary_files([tuple]);
 
     // Some dummy content. We use `derive_typst_intoval` to easily
     // create `Dict`s from structs by deriving `IntoDict`;

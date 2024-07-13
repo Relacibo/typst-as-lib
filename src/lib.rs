@@ -6,6 +6,7 @@ use typst::diag::{FileError, FileResult, SourceResult};
 use typst::eval::Tracer;
 use typst::foundations::{Bytes, Datetime, Dict};
 use typst::model::Document;
+use typst::syntax::package::PackageSpec;
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::Library;
@@ -23,31 +24,20 @@ pub struct TypstTemplate {
 
 impl TypstTemplate {
     /// Initialize with fonts and a given source.
+    /// - `source` can be of types:
+    ///     - `String`, creating a detached Source
+    ///     - `(&str, String)`, where &str is the absolute
+    ///       virtual path of the Source file.
+    ///     - `(FileId, String)`
+    ///     - `typst::syntax::Source`
     pub fn new<S>(fonts: Vec<Font>, source: S) -> Self
     where
-        S: Into<Source>,
+        S: Into<SourceNewType>,
     {
+        let SourceNewType(source) = source.into();
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
-            source: source.into(),
-            fonts,
-            other_sources: Default::default(),
-            files: Default::default(),
-        }
-    }
-
-    /// Initialize with fonts and string that will be converted to a source. 
-    /// It will have the virtual path: `/template.typ`.
-    pub fn new_from_string<S>(fonts: Vec<Font>, source: S) -> Self
-    where
-        S: Into<String>,
-    {
-        Self {
-            book: Prehashed::new(FontBook::from_fonts(&fonts)),
-            source: Source::new(
-                FileId::new(None, VirtualPath::new("/template.typ")),
-                source.into(),
-            ),
+            source,
             fonts,
             other_sources: Default::default(),
             files: Default::default(),
@@ -59,39 +49,17 @@ impl TypstTemplate {
     /// ```rust
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
-    /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// let tuple = (file_id, OTHER_SOURCE);
-    /// template = template.add_other_sources_from_strings([tuple]);
-    /// ```
-    pub fn add_other_sources_from_strings<I, S>(mut self, other_sources: I) -> Self
-    where
-        I: IntoIterator<Item = (FileId, S)>,
-        S: Into<String>,
-    {
-        let new_other_sources = other_sources
-            .into_iter()
-            .map(|(id, s)| (id, Source::new(id, s.into())));
-        self.other_sources.extend(new_other_sources);
-        self
-    }
-
-    /// Add sources for template
-    /// Example:
-    /// ```rust
-    /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
-    /// // ...
-    /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// let source = Source::new(file_id, OTHER_SOURCE.into());
+    /// let source = ("/other_source.typ", OTHER_SOURCE.to_owned());
     /// template = template.add_other_sources([source]);
     /// ```
     pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<Source>,
+        S: Into<SourceNotDetachedNewType>,
     {
         let new_other_sources = other_sources.into_iter().map(|s| {
-            let source: Source = s.into();
-            (source.id(), source)
+            let SourceNotDetachedNewType(s) = s.into();
+            (s.id(), s)
         });
         self.other_sources.extend(new_other_sources);
         self
@@ -102,16 +70,19 @@ impl TypstTemplate {
     /// ```rust
     /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
     /// // ...
-    /// let file_id = FileId::new(None, VirtualPath::new("/images/image.png"))
-    /// let tuple = (file_id, IMAGE);
+    /// let tuple = ("/images/image.png", IMAGE);
     /// template = template.add_binary_files([tuple]);
     /// ```
-    pub fn add_binary_files<'a, I, B>(mut self, files: I) -> Self
+    pub fn add_binary_files<I, F, B>(mut self, files: I) -> Self
     where
-        I: IntoIterator<Item = (FileId, B)>,
+        I: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
         B: Into<Bytes>,
     {
-        let new_files = files.into_iter().map(|(id, b)| (id, b.into()));
+        let new_files = files.into_iter().map(|(id, b)| {
+            let FileIdNewType(id) = id.into();
+            (id, b.into())
+        });
         self.files.extend(new_files);
         self
     }
@@ -204,5 +175,81 @@ impl typst::World for TypstWorld<'_> {
         let month = (date.month0() + 1) as u8;
         let day = (date.day0() + 1) as u8;
         Datetime::from_ymd(year, month, day)
+    }
+}
+
+#[derive(Clone, Debug, Hash)]
+pub struct FileIdNewType(FileId);
+
+impl From<FileId> for FileIdNewType {
+    fn from(value: FileId) -> Self {
+        FileIdNewType(value)
+    }
+}
+
+impl From<&str> for FileIdNewType {
+    fn from(value: &str) -> Self {
+        FileIdNewType(FileId::new(None, VirtualPath::new(value)))
+    }
+}
+
+impl From<(PackageSpec, &str)> for FileIdNewType {
+    fn from((p, id): (PackageSpec, &str)) -> Self {
+        FileIdNewType(FileId::new(Some(p), VirtualPath::new(id)))
+    }
+}
+
+#[derive(Clone, Debug, Hash)]
+pub struct SourceNewType(Source);
+
+impl From<Source> for SourceNewType {
+    fn from(source: Source) -> Self {
+        SourceNewType(source)
+    }
+}
+
+impl From<(&str, String)> for SourceNewType {
+    fn from((path, source): (&str, String)) -> Self {
+        let id = FileId::new(None, VirtualPath::new(path));
+        let source = Source::new(id, source);
+        SourceNewType(source)
+    }
+}
+
+impl From<(FileId, String)> for SourceNewType {
+    fn from((id, source): (FileId, String)) -> Self {
+        let source = Source::new(id, source);
+        SourceNewType(source)
+    }
+}
+
+impl From<String> for SourceNewType {
+    fn from(source: String) -> Self {
+        let source = Source::detached(source);
+        SourceNewType(source)
+    }
+}
+
+#[derive(Clone, Debug, Hash)]
+pub struct SourceNotDetachedNewType(Source);
+
+impl From<Source> for SourceNotDetachedNewType {
+    fn from(source: Source) -> Self {
+        SourceNotDetachedNewType(source)
+    }
+}
+
+impl From<(&str, String)> for SourceNotDetachedNewType {
+    fn from((path, source): (&str, String)) -> Self {
+        let id = FileId::new(None, VirtualPath::new(path));
+        let source = Source::new(id, source);
+        SourceNotDetachedNewType(source)
+    }
+}
+
+impl From<(FileId, String)> for SourceNotDetachedNewType {
+    fn from((id, source): (FileId, String)) -> Self {
+        let source = Source::new(id, source);
+        SourceNotDetachedNewType(source)
     }
 }
