@@ -77,7 +77,7 @@ impl TypstTemplate {
         }
     }
 
-    /// Call `typst::compile()` with our template an a `Dict` as input, that will be availible 
+    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible 
     /// in a typst script with `#import sys: inputs`.
     pub fn compile_with_input(&self, tracer: &mut Tracer, input: Dict) -> SourceResult<Document> {
         let library = Prehashed::new(Library::builder().with_inputs(input).build());
