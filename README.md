@@ -14,18 +14,27 @@ use typst::foundations::{Bytes, IntoValue, Smart};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
-static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
+static TEMPLATE_FILE: &str = include_str!(
+    "./templates/template.typ"
+);
 
-static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+static FONT: &[u8] = include_bytes!(
+    "./fonts/texgyrecursor-regular.otf"
+);
 
 fn main() {
-    let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    let font = Font::new(Bytes::from(FONT), 0)
+                  .expect("Could not parse font!");
 
-    // Read in fonts and the main source file. It will be assigned the id "/template.typ".
-    // We can use this template more than once, if needed (Possibly with different input each time).
-    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE.to_owned());
+    // Read in fonts and the main source file. 
+    // It will be assigned the id "/template.typ".
+    // We can use this template more than once, 
+    // if needed (Possibly with different input each time).
+    let template = TypstTemplate::new(
+        vec![font], TEMPLATE_FILE.to_owned()
+    );
 
-    // optionally pass in some additional source files. 
+    // optionally pass in some additional source files.
     // `other_sources` is of type `HashMap<FileId, String>`.
     // template = template.with_other_sources(other_sources);
 
@@ -102,6 +111,6 @@ struct ContentElement {
 Run example with `cargo r --example small_example`.
 
 ## Some links, idk
+
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
 - [https://github.com/KillTheMule/derive_typst_intoval](https://github.com/KillTheMule/derive_typst_intoval)
-
