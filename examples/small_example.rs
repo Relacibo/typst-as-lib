@@ -12,6 +12,7 @@ fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file. It will be assigned the id "/template.typ".
+    // We can use this template more than once, if needed (Possibly with different input each time).
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE.to_owned());
 
     // optionally pass in some additional source files.
