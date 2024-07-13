@@ -22,7 +22,7 @@ impl TypstTemplate {
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
             source: Source::new(FileId::new(None, VirtualPath::new("/template.typ")), source),
-            fonts: fonts,
+            fonts,
         }
     }
 
