@@ -20,19 +20,11 @@ pub struct TypstTemplate {
 }
 
 impl TypstTemplate {
-    pub fn new(source: String) -> Self {
-        Self {
-            book: Prehashed::new(FontBook::new()),
-            source: Source::new(FileId::new(None, VirtualPath::new("/template.typ")), source),
-            fonts: Default::default(),
-        }
-    }
-
-    pub fn with_fonts(self, fonts: Vec<Font>) -> Self {
+    pub fn new(fonts: Vec<Font>, source: String) -> Self {
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
-            fonts,
-            ..self
+            source: Source::new(FileId::new(None, VirtualPath::new("/template.typ")), source),
+            fonts: fonts,
         }
     }
 
@@ -51,7 +43,7 @@ impl TypstTemplate {
         content: Dict,
         tracer: &mut Tracer,
     ) -> SourceResult<Document> {
-        let template = TypstTemplate::new(source).with_fonts(fonts);
+        let template = TypstTemplate::new(fonts, source);
         template.compile(tracer, content)
     }
 }

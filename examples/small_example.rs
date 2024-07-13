@@ -10,7 +10,7 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    let template = TypstTemplate::new(TEMPLATE_FILE.to_owned()).with_fonts(vec![font]);
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE.to_owned());
 
     let content = Content {
         v: vec![
