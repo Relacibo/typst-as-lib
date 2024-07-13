@@ -63,6 +63,7 @@ fn main() {
     let mut tracer = Default::default();
 
     // Run it
+    // Run `template.compile(&mut tracer)` to run typst script without any input.
     let doc = template
         .compile_with_input(&mut tracer, content.into_dict())
         .expect("typst::compile() returned an error!");
