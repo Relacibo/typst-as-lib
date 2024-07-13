@@ -65,6 +65,7 @@ struct ContentElement {
 ### typst code
 
 ```typ
+// template.typ
 #import sys: inputs
 
 #set page(paper: "a4")
