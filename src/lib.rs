@@ -8,10 +8,10 @@ use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::Library;
 
-/// Main interface that determines the environment for Typst.
+// Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
+
 #[derive(Debug, Clone)]
 pub struct TypstTemplate {
-    /// The standard library.
     book: Prehashed<FontBook>,
 
     source: Source,
@@ -53,26 +53,19 @@ struct TypstWorld<'a> {
     template: &'a TypstTemplate,
 }
 
-/// This is the interface we have to implement such that `typst` can compile it.
-///
-/// I have tried to keep it as minimal as possible
 impl typst::World for TypstWorld<'_> {
-    /// Standard library.
     fn library(&self) -> &Prehashed<Library> {
         &self.library
     }
 
-    /// Metadata about all known Books.
     fn book(&self) -> &Prehashed<FontBook> {
         &self.template.book
     }
 
-    /// Accessing the main source file.
     fn main(&self) -> Source {
         self.template.source.clone()
     }
 
-    /// Accessing a specified source file (based on `FileId`).
     fn source(&self, id: FileId) -> FileResult<Source> {
         let package = id.package();
         let vpath = id
@@ -91,21 +84,16 @@ impl typst::World for TypstWorld<'_> {
         Ok(source)
     }
 
-    /// Accessing a specified file (non-file).
     fn file(&self, id: FileId) -> FileResult<Bytes> {
         return Err(FileError::NotFound(
             id.vpath().as_rooted_path().to_path_buf(),
         ));
     }
 
-    /// Accessing a specified font per index of font book.
     fn font(&self, id: usize) -> Option<Font> {
         self.template.fonts.get(id).cloned()
     }
 
-    /// Get the current date.
-    ///
-    /// Optionally, an offset in hours is given.
     fn today(&self, offset: Option<i64>) -> Option<Datetime> {
         let mut now = Local::now();
         if let Some(offset) = offset {
