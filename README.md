@@ -1,6 +1,6 @@
 # typst-as-lib
 
-Small wrapper for typst that allows using it as a templating engine. Maybe useful for someone...
+Small wrapper for typst that makes it easier to use it as a templating engine. Maybe useful for someone...
 
 ## Usage
 
