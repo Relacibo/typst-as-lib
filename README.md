@@ -23,19 +23,16 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 // static IMAGE: &[u8] = include_bytes!("./images/image.png");
 
 fn main() {
-    let font = Font::new(Bytes::from(FONT), 0)
-        .expect("Could not parse font!");
+    let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly 
     // with different input each time).
     #[allow(unused_mut)]
-    let mut template = TypstTemplate::new(
-        vec![font], TEMPLATE_FILE.to_owned()
-    );
+    let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
     // optionally pass in some additional source files.
-    // let source = ("/other_source.typ", OTHER_SOURCE.to_owned());    
+    // let source = ("/other_source.typ", OTHER_SOURCE);    
     // template = template.add_other_sources([source]);
 
     // optionally pass in some additional binary files.

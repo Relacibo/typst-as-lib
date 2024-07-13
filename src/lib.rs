@@ -25,11 +25,22 @@ pub struct TypstTemplate {
 impl TypstTemplate {
     /// Initialize with fonts and a given source.
     /// - `source` can be of types:
-    ///     - `String`, creating a detached Source
+    ///     - `String`, creating a detached Source (Has vpath `/main.typ`)
     ///     - `(&str, String)`, where &str is the absolute
     ///       virtual path of the Source file.
-    ///     - `(FileId, String)`
+    ///     - `(typst::syntax::FileId, String)`
     ///     - `typst::syntax::Source`
+    /// 
+    /// (`String` is always the template file content)
+    /// 
+    /// Example:
+    /// ```rust
+    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    /// let template = TypstTemplate::new(vec![font], TEMPLATE);
+    /// ```
     pub fn new<S>(fonts: Vec<Font>, source: S) -> Self
     where
         S: Into<SourceNewType>,
@@ -45,20 +56,29 @@ impl TypstTemplate {
     }
 
     /// Add sources for template
+    /// - `other_sources` The item of the IntoIterator can be of types:
+    ///     - `String`, creating a detached Source (Has vpath `/main.typ`)
+    ///     - `(&str, String)`, where &str is the absolute
+    ///       virtual path of the Source file.
+    ///     - `(typst::syntax::FileId, String)`
+    ///     - `typst::syntax::Source`
+    /// 
+    /// (`String` is always the template file content)
+    /// 
     /// Example:
     /// ```rust
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
     /// // ...
-    /// let source = ("/other_source.typ", OTHER_SOURCE.to_owned());
+    /// let source = ("/other_source.typ", OTHER_SOURCE);
     /// template = template.add_other_sources([source]);
     /// ```
     pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<SourceNotDetachedNewType>,
+        S: Into<SourceNewType>,
     {
         let new_other_sources = other_sources.into_iter().map(|s| {
-            let SourceNotDetachedNewType(s) = s.into();
+            let SourceNewType(s) = s.into();
             (s.id(), s)
         });
         self.other_sources.extend(new_other_sources);
@@ -230,10 +250,22 @@ impl From<(&str, String)> for SourceNewType {
     }
 }
 
+impl From<(&str, &str)> for SourceNewType {
+    fn from((path, source): (&str, &str)) -> Self {
+        SourceNewType::from((path, source.to_owned()))
+    }
+}
+
 impl From<(FileId, String)> for SourceNewType {
     fn from((id, source): (FileId, String)) -> Self {
         let source = Source::new(id, source);
         SourceNewType(source)
+    }
+}
+
+impl From<(FileId, &str)> for SourceNewType {
+    fn from((id, source): (FileId, &str)) -> Self {
+        SourceNewType::from((id, source.to_owned()))
     }
 }
 
@@ -244,33 +276,8 @@ impl From<String> for SourceNewType {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
-pub struct SourceNotDetachedNewType(Source);
-
-impl From<Source> for SourceNotDetachedNewType {
-    fn from(source: Source) -> Self {
-        SourceNotDetachedNewType(source)
-    }
-}
-
-impl From<SourceNotDetachedNewType> for Source {
-    fn from(source: SourceNotDetachedNewType) -> Self {
-        let SourceNotDetachedNewType(source) = source;
-        source
-    }
-}
-
-impl From<(&str, String)> for SourceNotDetachedNewType {
-    fn from((path, source): (&str, String)) -> Self {
-        let id = FileId::new(None, VirtualPath::new(path));
-        let source = Source::new(id, source);
-        SourceNotDetachedNewType(source)
-    }
-}
-
-impl From<(FileId, String)> for SourceNotDetachedNewType {
-    fn from((id, source): (FileId, String)) -> Self {
-        let source = Source::new(id, source);
-        SourceNotDetachedNewType(source)
+impl From<&str> for SourceNewType {
+    fn from(source: &str) -> Self {
+        SourceNewType::from(source.to_owned())
     }
 }
