@@ -148,6 +148,17 @@ impl TypstTemplate {
         Self { source, ..self }
     }
 
+    /// Replace main source
+    pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+        F: Into<Font>,
+    {
+        let fonts = fonts.into_iter().map(Into::into);
+        self.fonts.extend(fonts);
+        self
+    }
+
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
     pub fn compile_with_input<D>(&self, tracer: &mut Tracer, input: D) -> SourceResult<Document>
