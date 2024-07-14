@@ -139,6 +139,15 @@ impl TypstTemplate {
         self
     }
 
+    /// Replace main source
+    pub fn set_source<S>(self, source: S) -> Self
+    where
+        S: Into<SourceNewType>,
+    {
+        let SourceNewType(source) = source.into();
+        Self { source, ..self }
+    }
+
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
     pub fn compile_with_input<D>(&self, tracer: &mut Tracer, input: D) -> SourceResult<Document>
