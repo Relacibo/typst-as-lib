@@ -30,9 +30,9 @@ impl TypstTemplate {
     ///       virtual path of the Source file.
     ///     - `(typst::syntax::FileId, String)`
     ///     - `typst::syntax::Source`
-    /// 
+    ///
     /// (`String` is always the template file content)
-    /// 
+    ///
     /// Example:
     /// ```rust
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
@@ -55,6 +55,16 @@ impl TypstTemplate {
         }
     }
 
+    /// Initialize with fonts and string that will be converted to a source.
+    /// It will have the virtual path: `/template.typ`.
+    #[deprecated = "Use TypstTemplate::new instead"]
+    pub fn new_from_string<S>(fonts: Vec<Font>, source: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self::new(fonts, source.into())
+    }
+
     /// Add sources for template
     /// - `other_sources` The item of the IntoIterator can be of types:
     ///     - `String`, creating a detached Source (Has vpath `/main.typ`)
@@ -62,9 +72,9 @@ impl TypstTemplate {
     ///       virtual path of the Source file.
     ///     - `(typst::syntax::FileId, String)`
     ///     - `typst::syntax::Source`
-    /// 
+    ///
     /// (`String` is always the template file content)
-    /// 
+    ///
     /// Example:
     /// ```rust
     /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
@@ -81,6 +91,28 @@ impl TypstTemplate {
             let SourceNewType(s) = s.into();
             (s.id(), s)
         });
+        self.other_sources.extend(new_other_sources);
+        self
+    }
+
+    /// Add sources for template
+    /// Example:
+    /// ```rust
+    /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
+    /// // ...
+    /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
+    /// let tuple = (file_id, OTHER_SOURCE);
+    /// template = template.add_other_sources_from_strings([tuple]);
+    /// ```
+    #[deprecated = "Use TypstTemplate::add_other_sources instead"]
+    pub fn add_other_sources_from_strings<I, S>(mut self, other_sources: I) -> Self
+    where
+        I: IntoIterator<Item = (FileId, S)>,
+        S: Into<String>,
+    {
+        let new_other_sources = other_sources
+            .into_iter()
+            .map(|(id, s)| (id, Source::new(id, s.into())));
         self.other_sources.extend(new_other_sources);
         self
     }
