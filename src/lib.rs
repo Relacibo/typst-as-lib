@@ -148,7 +148,7 @@ impl TypstTemplate {
         Self { source, ..self }
     }
 
-    /// Replace main source
+    /// Add Fonts
     pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
     where
         I: IntoIterator<Item = F>,
