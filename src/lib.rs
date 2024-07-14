@@ -25,13 +25,13 @@ pub struct TypstTemplate {
 impl TypstTemplate {
     /// Initialize with fonts and a given source.
     /// - `source` can be of types:
-    ///     - `String`, creating a detached Source (Has vpath `/main.typ`)
-    ///     - `(&str, String)`, where &str is the absolute
+    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///     - `(&str, &str/String)`, where &str is the absolute
     ///       virtual path of the Source file.
-    ///     - `(typst::syntax::FileId, String)`
+    ///     - `(typst::syntax::FileId, &str/String)`
     ///     - `typst::syntax::Source`
     ///
-    /// (`String` is always the template file content)
+    /// (`&str/String` is always the template file content)
     ///
     /// Example:
     /// ```rust
@@ -67,13 +67,13 @@ impl TypstTemplate {
 
     /// Add sources for template
     /// - `other_sources` The item of the IntoIterator can be of types:
-    ///     - `String`, creating a detached Source (Has vpath `/main.typ`)
-    ///     - `(&str, String)`, where &str is the absolute
+    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///     - `(&str, &str/String)`, where &str is the absolute
     ///       virtual path of the Source file.
-    ///     - `(typst::syntax::FileId, String)`
+    ///     - `(typst::syntax::FileId, &str/String)`
     ///     - `typst::syntax::Source`
     ///
-    /// (`String` is always the template file content)
+    /// (`&str/String` is always the template file content)
     ///
     /// Example:
     /// ```rust
