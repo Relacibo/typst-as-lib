@@ -7,6 +7,7 @@ Small wrapper for typst that makes it easier to use it as a templating engine. M
 ### rust code
 
 ```rust
+// main.rs
 use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
 use typst::foundations::{Bytes, Dict, IntoValue, Smart};
