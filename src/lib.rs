@@ -49,10 +49,12 @@ impl TypstTemplate {
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
     /// let template = TypstTemplate::new(vec![font], TEMPLATE);
     /// ```
-    pub fn new<S>(fonts: Vec<Font>, source: S) -> Self
+    pub fn new<V, S>(fonts: V, source: S) -> Self
     where
+        V: Into<Vec<Font>>,
         S: Into<SourceNewType>,
     {
+        let fonts = fonts.into();
         let SourceNewType(source) = source.into();
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
