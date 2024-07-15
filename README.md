@@ -7,7 +7,6 @@ Small wrapper for typst that makes it easier to use it as a templating engine. M
 ### rust code
 
 ```rust
-// main.rs
 use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
 use typst::foundations::{Bytes, Dict, IntoValue, Smart};
@@ -30,6 +29,10 @@ fn main() {
     // with different input each time).
     #[allow(unused_mut)]
     let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+
+    // optionally set a custom inject location, which will have a
+    // better performance, when reusing the template
+    // template = template.custom_inject_location("from_rust", "inputs");
 
     // optionally pass in some additional source files.
     // let source = ("/other_source.typ", OTHER_SOURCE);    

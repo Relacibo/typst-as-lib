@@ -4,7 +4,7 @@ use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
 use typst::diag::{FileError, FileResult, SourceResult};
 use typst::eval::Tracer;
-use typst::foundations::{sys, Bytes, Datetime, Dict, Module, Scope};
+use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
 use typst::syntax::package::PackageSpec;
 use typst::syntax::{FileId, Source, VirtualPath};
@@ -20,12 +20,12 @@ pub struct TypstTemplate {
     other_sources: HashMap<FileId, Source>,
     files: HashMap<FileId, Bytes>,
     fonts: Vec<Font>,
-    preinitialized_library: Option<Prehashed<Library>>,
     inject_location: Option<InjectLocation>,
 }
 
 #[derive(Debug, Clone)]
 struct InjectLocation {
+    preinitialized_library: Library,
     module_name: String,
     value_name: String,
 }
@@ -61,7 +61,6 @@ impl TypstTemplate {
             other_sources: Default::default(),
             files: Default::default(),
             inject_location: Default::default(),
-            preinitialized_library: Default::default(),
         }
     }
 
@@ -170,24 +169,20 @@ impl TypstTemplate {
     /// Use other typst location for injected inputs
     /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
     /// and `inputs` is the `value_name`).
-    /// Maybe more performant, if template is reused, because library will
-    /// be initialized only once.
+    /// Also preinitializes the library for better performance,
+    /// if the template will be reused.
+    /// TypstTemplate::compile will panic in debug build,
+    /// if the location is already used.
     pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
     {
         Self {
             inject_location: Some(InjectLocation {
+                preinitialized_library: Default::default(),
                 module_name: module_name.into(),
                 value_name: value_name.into(),
             }),
-            ..self
-        }
-    }
-
-    pub fn preinitialize_library(self) -> Self {
-        Self {
-            preinitialized_library: Default::default(),
             ..self
         }
     }
@@ -210,31 +205,27 @@ impl TypstTemplate {
         D: Into<Dict>,
     {
         let Self {
-            preinitialized_library,
-            inject_location,
-            ..
+            inject_location, ..
         } = self;
         let inputs = inputs.into();
         let library = if let Some(InjectLocation {
+            preinitialized_library,
             module_name,
             value_name,
         }) = inject_location
         {
-            let mut lib = preinitialized_library
-                .clone()
-                .map(|p| p.into_inner())
-                .unwrap_or_default();
+            let mut lib = preinitialized_library.clone();
             let global = lib.global.scope_mut();
-            let mut scope = Scope::deduplicating();
+            let mut scope = Scope::new();
             scope.define(value_name, inputs);
             let module = Module::new(module_name, scope);
             global.define_module(module);
-            Prehashed::new(lib)
+            lib
         } else {
-            Prehashed::new(Library::builder().with_inputs(inputs).build())
+            Library::builder().with_inputs(inputs).build()
         };
         let world = TypstWorld {
-            library: Some(library),
+            library: Prehashed::new(library),
             template: self,
         };
         typst::compile(&world, tracer)
@@ -242,12 +233,8 @@ impl TypstTemplate {
 
     /// Just call `typst::compile()`
     pub fn compile(&self, tracer: &mut Tracer) -> SourceResult<Document> {
-        let library = self
-            .preinitialized_library
-            .is_none()
-            .then(|| Default::default());
         let world = TypstWorld {
-            library,
+            library: Default::default(),
             template: self,
         };
         typst::compile(&world, tracer)
@@ -255,21 +242,13 @@ impl TypstTemplate {
 }
 
 struct TypstWorld<'a> {
-    library: Option<Prehashed<Library>>,
+    library: Prehashed<Library>,
     template: &'a TypstTemplate,
 }
 
 impl typst::World for TypstWorld<'_> {
     fn library(&self) -> &Prehashed<Library> {
-        if let Some(library) = &self.library {
-            return library;
-        }
-        // Can not fail as we always make sure to initialize the owned library,
-        // If it was not preinitialized
-        self.template
-            .preinitialized_library
-            .as_ref()
-            .expect("No library is initialized. Can never happen.")
+        &self.library
     }
 
     fn book(&self) -> &Prehashed<FontBook> {
