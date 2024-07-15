@@ -122,7 +122,7 @@ struct ContentElement {
 
 Run example with `cargo r --example small_example`.
 
-## TODO
+## TODOs
 Maybe have a `TemplateCollection` struct, so you can compile different sources 
 without having to mutate `TypstTemplate` with `TypstTemplate.source()` or create 
 a `TypstTemplate` for each main source, that you want to render.
