@@ -21,6 +21,10 @@ fn main() {
     #[allow(unused_mut)]
     let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
+    // optionally set a custom inject location, which will have a
+    // better performance, when reusing the template
+    // template = template.custom_inject_location("from_rust", "inputs");
+
     // optionally pass in some additional source files.
     // let source = ("/other_source.typ", OTHER_SOURCE);    
     // template = template.add_other_sources([source]);
