@@ -50,16 +50,6 @@ impl TypstTemplate {
         Self { collection, source }
     }
 
-    /// Initialize with fonts and string that will be converted to a source.
-    /// It will have the virtual path: `/template.typ`.
-    #[deprecated = "Use TypstTemplate::new instead"]
-    pub fn new_from_string<S>(fonts: Vec<Font>, source: S) -> Self
-    where
-        S: Into<String>,
-    {
-        Self::new(fonts, source.into())
-    }
-
     /// Add sources for template
     /// - `other_sources` The item of the IntoIterator can be of types:
     ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
@@ -88,29 +78,6 @@ impl TypstTemplate {
         }
     }
 
-    /// Add sources for template
-    /// Example:
-    /// ```rust
-    /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
-    /// // ...
-    /// let file_id = FileId::new(None, VirtualPath::new("/other_source.typ"))
-    /// let tuple = (file_id, OTHER_SOURCE);
-    /// template = template.add_other_sources_from_strings([tuple]);
-    /// ```
-    #[deprecated = "Use TypstTemplate::add_other_sources instead"]
-    pub fn add_other_sources_from_strings<I, S>(self, other_sources: I) -> Self
-    where
-        I: IntoIterator<Item = (FileId, S)>,
-        S: Into<String>,
-    {
-        Self {
-            collection: self
-                .collection
-                .add_sources(other_sources.into_iter().map(|(id, s)| (id, s.into()))),
-            ..self
-        }
-    }
-
     /// Add binary files for template
     /// Example:
     /// ```rust
@@ -129,15 +96,6 @@ impl TypstTemplate {
             collection: self.collection.add_binary_files(files),
             ..self
         }
-    }
-
-    /// Replace main source
-    #[deprecated = "Use TypstTemplate::source instead"]
-    pub fn set_source<S>(self, source: S) -> Self
-    where
-        S: Into<SourceNewType>,
-    {
-        self.source(source)
     }
 
     /// Replace main source
@@ -182,7 +140,11 @@ impl TypstTemplate {
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
-    pub fn compile_with_input<D>(&self, tracer: &mut Tracer, inputs: D) -> SourceResult<Document>
+    pub fn compile_with_input<D>(
+        &self,
+        tracer: &mut Tracer,
+        inputs: D,
+    ) -> Result<Document, TypstAsLibError>
     where
         D: Into<Dict>,
     {
@@ -195,11 +157,12 @@ impl TypstTemplate {
             collection,
             main_source: &source,
         };
-        typst::compile(&world, tracer)
+        let doc = typst::compile(&world, tracer)?;
+        Ok(doc)
     }
 
     /// Just call `typst::compile()`
-    pub fn compile(&self, tracer: &mut Tracer) -> SourceResult<Document> {
+    pub fn compile(&self, tracer: &mut Tracer) -> Result<Document, TypstAsLibError> {
         let Self {
             source, collection, ..
         } = self;
@@ -208,7 +171,8 @@ impl TypstTemplate {
             collection,
             main_source: source,
         };
-        typst::compile(&world, tracer)
+        let doc = typst::compile(&world, tracer)?;
+        Ok(doc)
     }
 }
 
@@ -501,8 +465,6 @@ struct InjectLocation {
 pub enum TypstAsLibError {
     #[error("Typst source error: {}", 0.to_string())]
     TypstSource(EcoVec<SourceDiagnostic>),
-    #[error("Typst file error: {0}")]
-    TypstFile(#[from] FileError),
     #[error("Source file does not exist in collection")]
     MainSourceFileDoesNotExist(FileId),
 }
