@@ -134,7 +134,7 @@ Loading fonts is not in the scope of this library (yet).
 - This is how the typst-cli loads system fonts:
 
     [https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69)
-- Here is also a small example of loading fonts from a folder:
+- Here is an example of loading fonts from a folder:
   
     [https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216](https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216)
 
