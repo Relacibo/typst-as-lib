@@ -130,7 +130,7 @@ If you want to compile multiple typst source files you might want to use the `Ty
 
 ## Loading fonts
 
-Loading fonts is not in the scope of this library (yet). 
+Loading fonts is not in the scope of this library (yet?). 
 - This is how the typst-cli loads system fonts:
 
     [https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69)
