@@ -4,7 +4,9 @@ Small wrapper for typst that makes it easier to use it as a templating engine. M
 
 ## Usage
 
-### rust code
+### TypstTemplate
+
+#### rust code
 
 ```rust
 // main.rs
@@ -97,7 +99,7 @@ struct ContentElement {
 }
 ```
 
-### typst code
+#### typst code
 
 ```typ
 // template.typ
@@ -121,6 +123,10 @@ struct ContentElement {
 ```
 
 Run example with `cargo r --example small_example`.
+
+### TypstTemplateCollection
+
+If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
 
 ## Some links, idk
 

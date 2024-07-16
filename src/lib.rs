@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
-use ecow::{eco_vec, EcoVec};
+use ecow::EcoVec;
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult};
 use typst::eval::Tracer;
@@ -257,9 +257,9 @@ impl TypstTemplateCollection {
     ///
     /// Example:
     /// ```rust
-    /// static SOURCES: &str = include_str!("./templates/source.typ");
+    /// static SOURCE: &str = include_str!("./templates/source.typ");
     /// // ...
-    /// let source = ("/source.typ", SOURCES);
+    /// let source = ("/source.typ", SOURCE);
     /// template = template.add_sources([source]);
     /// ```
     pub fn add_sources<I, S>(mut self, sources: I) -> Self
@@ -331,6 +331,23 @@ impl TypstTemplateCollection {
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
+    ///
+    /// Example:
+    ///
+    /// ```rust
+    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+    /// static TEMPLATE_ID: &str = "/template.typ";
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    /// let template_collection = TypstTemplateCollection::new(vec![font])
+    ///     .add_sources([(TEMPLATE_ID, TEMPLATE)]);
+    /// // Struct that implements Into<Dict>.
+    /// let inputs = todo!();
+    /// let tracer = Default::default();
+    /// let doc = template_collection.compile_with_inputs(&mut tracer, TEMPLATE_ID, inputs)
+    ///     .expect("Typst error!");
+    /// ```
     pub fn compile_with_input<F, D>(
         &self,
         tracer: &mut Tracer,
