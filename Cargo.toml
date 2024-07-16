@@ -15,6 +15,8 @@ exclude = [
 [dependencies]
 chrono = "0.4.38"
 comemo = "0.4.0"
+ecow = "0.2.2"
+thiserror = "1.0.62"
 typst = "0.11.1"
 
 [dev-dependencies]

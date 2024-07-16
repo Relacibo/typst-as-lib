@@ -1825,6 +1825,8 @@ dependencies = [
  "chrono",
  "comemo",
  "derive_typst_intoval",
+ "ecow",
+ "thiserror",
  "typst",
  "typst-pdf",
 ]

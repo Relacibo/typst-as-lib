@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
-use typst::diag::{FileError, FileResult, SourceResult};
+use ecow::{eco_vec, EcoVec};
+use thiserror::Error;
+use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult};
 use typst::eval::Tracer;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
@@ -15,19 +17,8 @@ use typst::Library;
 
 #[derive(Debug, Clone)]
 pub struct TypstTemplate {
-    book: Prehashed<FontBook>,
     source: Source,
-    other_sources: HashMap<FileId, Source>,
-    files: HashMap<FileId, Bytes>,
-    fonts: Vec<Font>,
-    inject_location: Option<InjectLocation>,
-}
-
-#[derive(Debug, Clone)]
-struct InjectLocation {
-    preinitialized_library: Library,
-    module_name: String,
-    value_name: String,
+    collection: TypstTemplateCollection,
 }
 
 impl TypstTemplate {
@@ -54,16 +45,9 @@ impl TypstTemplate {
         V: Into<Vec<Font>>,
         S: Into<SourceNewType>,
     {
-        let fonts = fonts.into();
+        let collection = TypstTemplateCollection::new(fonts);
         let SourceNewType(source) = source.into();
-        Self {
-            book: Prehashed::new(FontBook::from_fonts(&fonts)),
-            source,
-            fonts,
-            other_sources: Default::default(),
-            files: Default::default(),
-            inject_location: Default::default(),
-        }
+        Self { collection, source }
     }
 
     /// Initialize with fonts and string that will be converted to a source.
@@ -93,17 +77,15 @@ impl TypstTemplate {
     /// let source = ("/other_source.typ", OTHER_SOURCE);
     /// template = template.add_other_sources([source]);
     /// ```
-    pub fn add_other_sources<I, S>(mut self, other_sources: I) -> Self
+    pub fn add_other_sources<I, S>(self, other_sources: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: Into<SourceNewType>,
     {
-        let new_other_sources = other_sources.into_iter().map(|s| {
-            let SourceNewType(s) = s.into();
-            (s.id(), s)
-        });
-        self.other_sources.extend(new_other_sources);
-        self
+        Self {
+            collection: self.collection.add_sources(other_sources),
+            ..self
+        }
     }
 
     /// Add sources for template
@@ -116,15 +98,180 @@ impl TypstTemplate {
     /// template = template.add_other_sources_from_strings([tuple]);
     /// ```
     #[deprecated = "Use TypstTemplate::add_other_sources instead"]
-    pub fn add_other_sources_from_strings<I, S>(mut self, other_sources: I) -> Self
+    pub fn add_other_sources_from_strings<I, S>(self, other_sources: I) -> Self
     where
         I: IntoIterator<Item = (FileId, S)>,
         S: Into<String>,
     {
-        let new_other_sources = other_sources
-            .into_iter()
-            .map(|(id, s)| (id, Source::new(id, s.into())));
-        self.other_sources.extend(new_other_sources);
+        Self {
+            collection: self
+                .collection
+                .add_sources(other_sources.into_iter().map(|(id, s)| (id, s.into()))),
+            ..self
+        }
+    }
+
+    /// Add binary files for template
+    /// Example:
+    /// ```rust
+    /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
+    /// // ...
+    /// let tuple = ("/images/image.png", IMAGE);
+    /// template = template.add_binary_files([tuple]);
+    /// ```
+    pub fn add_binary_files<I, F, B>(self, files: I) -> Self
+    where
+        I: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
+        Self {
+            collection: self.collection.add_binary_files(files),
+            ..self
+        }
+    }
+
+    /// Replace main source
+    #[deprecated = "Use TypstTemplate::source instead"]
+    pub fn set_source<S>(self, source: S) -> Self
+    where
+        S: Into<SourceNewType>,
+    {
+        self.source(source)
+    }
+
+    /// Replace main source
+    pub fn source<S>(self, source: S) -> Self
+    where
+        S: Into<SourceNewType>,
+    {
+        let SourceNewType(source) = source.into();
+        Self { source, ..self }
+    }
+
+    /// Use other typst location for injected inputs
+    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
+    /// and `inputs` is the `value_name`).
+    /// Also preinitializes the library for better performance,
+    /// if the template will be reused.
+    /// TypstTemplate::compile will panic in debug build,
+    /// if the location is already used.
+    pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            collection: self
+                .collection
+                .custom_inject_location(module_name, value_name),
+            ..self
+        }
+    }
+
+    /// Add Fonts
+    pub fn add_fonts<I, F>(self, fonts: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+        F: Into<Font>,
+    {
+        Self {
+            collection: self.collection.add_fonts(fonts),
+            ..self
+        }
+    }
+
+    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
+    /// in a typst script with `#import sys: inputs`.
+    pub fn compile_with_input<D>(&self, tracer: &mut Tracer, inputs: D) -> SourceResult<Document>
+    where
+        D: Into<Dict>,
+    {
+        let Self {
+            source, collection, ..
+        } = self;
+        let library = initialize_library(collection, inputs);
+        let world = TypstWorld {
+            library: Prehashed::new(library),
+            collection,
+            main_source: &source,
+        };
+        typst::compile(&world, tracer)
+    }
+
+    /// Just call `typst::compile()`
+    pub fn compile(&self, tracer: &mut Tracer) -> SourceResult<Document> {
+        let Self {
+            source, collection, ..
+        } = self;
+        let world = TypstWorld {
+            library: Default::default(),
+            collection,
+            main_source: source,
+        };
+        typst::compile(&world, tracer)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypstTemplateCollection {
+    book: Prehashed<FontBook>,
+    sources: HashMap<FileId, Source>,
+    files: HashMap<FileId, Bytes>,
+    fonts: Vec<Font>,
+    inject_location: Option<InjectLocation>,
+}
+
+impl TypstTemplateCollection {
+    /// Initialize with fonts.
+    ///
+    /// Example:
+    /// ```rust
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    /// let template = TypstTemplate::new(vec![font]);
+    /// ```
+    pub fn new<V>(fonts: V) -> Self
+    where
+        V: Into<Vec<Font>>,
+    {
+        let fonts = fonts.into();
+        Self {
+            book: Prehashed::new(FontBook::from_fonts(&fonts)),
+            fonts,
+            sources: Default::default(),
+            files: Default::default(),
+            inject_location: Default::default(),
+        }
+    }
+
+    /// Add sources for template
+    /// - `sources` The item of the IntoIterator can be of types:
+    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///     - `(&str, &str/String)`, where &str is the absolute
+    ///       virtual path of the Source file.
+    ///     - `(typst::syntax::FileId, &str/String)`
+    ///     - `typst::syntax::Source`
+    ///
+    /// (`&str/String` is always the template file content)
+    ///
+    /// Example:
+    /// ```rust
+    /// static SOURCES: &str = include_str!("./templates/source.typ");
+    /// // ...
+    /// let source = ("/source.typ", SOURCES);
+    /// template = template.add_sources([source]);
+    /// ```
+    pub fn add_sources<I, S>(mut self, sources: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<SourceNewType>,
+    {
+        let new_sources = sources.into_iter().map(|s| {
+            let SourceNewType(s) = s.into();
+            (s.id(), s)
+        });
+        self.sources.extend(new_sources);
         self
     }
 
@@ -148,24 +295,6 @@ impl TypstTemplate {
         });
         self.files.extend(new_files);
         self
-    }
-
-    /// Replace main source
-    #[deprecated = "Use TypstTemplate::source instead"]
-    pub fn set_source<S>(self, source: S) -> Self
-    where
-        S: Into<SourceNewType>,
-    {
-        self.source(source)
-    }
-
-    /// Replace main source
-    pub fn source<S>(self, source: S) -> Self
-    where
-        S: Into<SourceNewType>,
-    {
-        let SourceNewType(source) = source.into();
-        Self { source, ..self }
     }
 
     /// Use other typst location for injected inputs
@@ -202,50 +331,85 @@ impl TypstTemplate {
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
-    pub fn compile_with_input<D>(&self, tracer: &mut Tracer, inputs: D) -> SourceResult<Document>
+    pub fn compile_with_input<F, D>(
+        &self,
+        tracer: &mut Tracer,
+        main_source: F,
+        inputs: D,
+    ) -> Result<Document, TypstAsLibError>
     where
+        F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        let Self {
-            inject_location, ..
-        } = self;
-        let inputs = inputs.into();
-        let library = if let Some(InjectLocation {
-            preinitialized_library,
-            module_name,
-            value_name,
-        }) = inject_location
-        {
-            let mut lib = preinitialized_library.clone();
-            let global = lib.global.scope_mut();
-            let mut scope = Scope::new();
-            scope.define(value_name, inputs);
-            let module = Module::new(module_name, scope);
-            global.define_module(module);
-            lib
-        } else {
-            Library::builder().with_inputs(inputs).build()
-        };
+        let Self { sources, .. } = self;
+        let FileIdNewType(main_source) = main_source.into();
+        let main_source = sources
+            .get(&main_source)
+            .ok_or_else(|| TypstAsLibError::MainSourceFileDoesNotExist(main_source))?;
+        let library = initialize_library(self, inputs);
         let world = TypstWorld {
             library: Prehashed::new(library),
-            template: self,
+            collection: self,
+            main_source,
         };
-        typst::compile(&world, tracer)
+        let doc = typst::compile(&world, tracer)?;
+        Ok(doc)
     }
 
     /// Just call `typst::compile()`
-    pub fn compile(&self, tracer: &mut Tracer) -> SourceResult<Document> {
+    pub fn compile<F>(
+        &self,
+        tracer: &mut Tracer,
+        main_source: F,
+    ) -> Result<Document, TypstAsLibError>
+    where
+        F: Into<FileIdNewType>,
+    {
+        let Self { sources, .. } = self;
+        let FileIdNewType(main_source) = main_source.into();
+        let main_source = sources
+            .get(&main_source)
+            .ok_or_else(|| TypstAsLibError::MainSourceFileDoesNotExist(main_source))?;
         let world = TypstWorld {
             library: Default::default(),
-            template: self,
+            collection: self,
+            main_source,
         };
-        typst::compile(&world, tracer)
+        let doc = typst::compile(&world, tracer)?;
+        Ok(doc)
+    }
+}
+
+fn initialize_library<D>(collection: &TypstTemplateCollection, inputs: D) -> Library
+where
+    D: Into<Dict>,
+{
+    let inputs = inputs.into();
+    let TypstTemplateCollection {
+        inject_location, ..
+    } = collection;
+    if let Some(InjectLocation {
+        preinitialized_library,
+        module_name,
+        value_name,
+    }) = inject_location
+    {
+        let mut lib = preinitialized_library.clone();
+        let global = lib.global.scope_mut();
+        let mut scope = Scope::new();
+        scope.define(value_name, inputs);
+        let module = Module::new(module_name, scope);
+        global.define_module(module);
+        lib
+    } else {
+        Library::builder().with_inputs(inputs).build()
     }
 }
 
 struct TypstWorld<'a> {
     library: Prehashed<Library>,
-    template: &'a TypstTemplate,
+    main_source: &'a Source,
+    collection: &'a TypstTemplateCollection,
 }
 
 impl typst::World for TypstWorld<'_> {
@@ -254,20 +418,20 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn book(&self) -> &Prehashed<FontBook> {
-        &self.template.book
+        &self.collection.book
     }
 
     fn main(&self) -> Source {
-        self.template.source.clone()
+        self.main_source.clone()
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
         let TypstWorld {
-            template: TypstTemplate { other_sources, .. },
+            collection: TypstTemplateCollection { sources, .. },
             ..
         } = self;
 
-        if let Some(source) = other_sources.get(&id).cloned() {
+        if let Some(source) = sources.get(&id).cloned() {
             return Ok(source);
         }
 
@@ -282,7 +446,7 @@ impl typst::World for TypstWorld<'_> {
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
         let TypstWorld {
-            template: TypstTemplate { files, .. },
+            collection: TypstTemplateCollection { files, .. },
             ..
         } = self;
 
@@ -293,7 +457,7 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn font(&self, id: usize) -> Option<Font> {
-        self.template.fonts.get(id).cloned()
+        self.collection.fonts.get(id).cloned()
     }
 
     fn today(&self, offset: Option<i64>) -> Option<Datetime> {
@@ -306,6 +470,29 @@ impl typst::World for TypstWorld<'_> {
         let month = (date.month0() + 1) as u8;
         let day = (date.day0() + 1) as u8;
         Datetime::from_ymd(year, month, day)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct InjectLocation {
+    preinitialized_library: Library,
+    module_name: String,
+    value_name: String,
+}
+
+#[derive(Debug, Clone, Error)]
+pub enum TypstAsLibError {
+    #[error("Typst source error: {}", 0.to_string())]
+    TypstSource(EcoVec<SourceDiagnostic>),
+    #[error("Typst file error: {0}")]
+    TypstFile(#[from] FileError),
+    #[error("Source file does not exist in collection")]
+    MainSourceFileDoesNotExist(FileId),
+}
+
+impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
+    fn from(value: EcoVec<SourceDiagnostic>) -> Self {
+        TypstAsLibError::TypstSource(value)
     }
 }
 
