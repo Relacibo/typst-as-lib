@@ -128,6 +128,14 @@ Run example with `cargo r --example small_example`.
 
 If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
 
+## Loading fonts
+
+Loading fonts is not in the scope of this library (yet). 
+- This is how the typst-cli loads system fonts:
+[https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69)
+- Here is also a small example of loading fonts from a folder:
+[https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216](https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216)
+
 ## Some links, idk
 
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
