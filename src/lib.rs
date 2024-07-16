@@ -465,7 +465,7 @@ struct InjectLocation {
 pub enum TypstAsLibError {
     #[error("Typst source error: {}", 0.to_string())]
     TypstSource(EcoVec<SourceDiagnostic>),
-    #[error("Source file does not exist in collection")]
+    #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
 }
 
