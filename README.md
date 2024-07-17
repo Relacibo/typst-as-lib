@@ -1,6 +1,6 @@
 # typst-as-lib
 
-Small wrapper for typst that makes it easier to use it as a templating engine. Maybe useful for someone...
+Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine. Maybe useful for someone...
 
 ## Usage
 
@@ -26,8 +26,7 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly 
     // with different input each time).
-    #[allow(unused_mut)]
-    let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
     // Some dummy content. We use `derive_typst_intoval` to easily
     // create `Dict`s from structs by deriving `IntoDict`;
@@ -116,7 +115,7 @@ cargo r --example=small_example
 If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
 
 ### Resolving files and packages
-I don't want to put that logic into the library itself, as it is not useful for my use cases, but `TypstTemplate::file_resolver` can be used for this purpose. See example `examples/resolve_files.rs`. I used the code from [typst-as-library](https://github.com/tfachmann/typst-as-library).
+I don't want to put that logic into the library itself, as it is not useful for my use cases, but `TypstTemplate::file_resolver` can be used for this purpose. See example [examples/resolve_files.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_files.rs). I used the code from [typst-as-library](https://github.com/tfachmann/typst-as-library). If there is interest for this, just write an issue. I could imagine providing this behind a feature flag (Maybe one for files and packages each).
 
 ```bash
 cargo r --example=resolve_files
@@ -124,7 +123,7 @@ cargo r --example=resolve_files
 
 ## Loading fonts
 
-Loading fonts is not in the scope of this library (yet?). 
+Loading fonts is not in the scope of this library (yet?). If you are interested in that, write an issue.
 - This is how the typst-cli loads system fonts:
 
     [https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69)
