@@ -248,17 +248,16 @@ impl TypstTemplateCollection {
 
     fn resolve_with_file_resolver(&self, id: FileId) -> Result<Source, FileError> {
         let TypstTemplateCollection { file_resolver, .. } = self;
-        if let Some(file_resolver) = file_resolver {
-            // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
-            let file = file_resolver(id)?;
-            let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
-            let contents = contents.trim_start_matches('\u{feff}');
-            Ok(Source::new(id, contents.into()))
-        } else {
-            Err(FileError::NotFound(
+        let Some(file_resolver) = file_resolver else {
+            return Err(FileError::NotFound(
                 id.vpath().as_rooted_path().to_path_buf(),
-            ))
-        }
+            ));
+        };
+        // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
+        let file = file_resolver(id)?;
+        let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
+        let contents = contents.trim_start_matches('\u{feff}');
+        Ok(Source::new(id, contents.into()))
     }
 }
 
