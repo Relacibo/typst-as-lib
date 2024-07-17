@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use chrono::{Datelike, Duration, Local};
@@ -186,19 +187,56 @@ impl TypstTemplateCollection {
     pub fn compile_with_input<F, D>(
         &self,
         tracer: &mut Tracer,
-        main_source: F,
+        main_source_id: F,
         inputs: D,
     ) -> Result<Document, TypstAsLibError>
     where
         F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        let Self { sources, .. } = self;
-        let FileIdNewType(main_source) = main_source.into();
-        let main_source = sources
-            .get(&main_source)
-            .ok_or_else(|| TypstAsLibError::MainSourceFileDoesNotExist(main_source))?;
         let library = initialize_library(self, inputs);
+        self.compile_with_library(tracer, library, main_source_id)
+    }
+
+    /// Just call `typst::compile()`
+    pub fn compile<F>(
+        &self,
+        tracer: &mut Tracer,
+        main_source_id: F,
+    ) -> Result<Document, TypstAsLibError>
+    where
+        F: Into<FileIdNewType>,
+    {
+        self.compile_with_library(tracer, Default::default(), main_source_id)
+    }
+
+    fn compile_with_library<F>(
+        &self,
+        tracer: &mut Tracer,
+        library: Library,
+        main_source_id: F,
+    ) -> Result<Document, TypstAsLibError>
+    where
+        F: Into<FileIdNewType>,
+    {
+        let FileIdNewType(main_source_id) = main_source_id.into();
+        let Self { sources, .. } = self;
+        let main_source = sources.get(&main_source_id);
+        let main_source = if let Some(main_source) = main_source {
+            Cow::Borrowed(main_source)
+        } else {
+            let source = self.resolve_with_file_resolver(main_source_id)?;
+            Cow::Owned(source)
+        };
+        self.compile_with_library_and_source(tracer, library, main_source)
+    }
+
+    fn compile_with_library_and_source<'a>(
+        &self,
+        tracer: &mut Tracer,
+        library: Library,
+        main_source: Cow<'a, Source>,
+    ) -> Result<Document, TypstAsLibError> {
         let world = TypstWorld {
             library: Prehashed::new(library),
             collection: self,
@@ -208,27 +246,19 @@ impl TypstTemplateCollection {
         Ok(doc)
     }
 
-    /// Just call `typst::compile()`
-    pub fn compile<F>(
-        &self,
-        tracer: &mut Tracer,
-        main_source: F,
-    ) -> Result<Document, TypstAsLibError>
-    where
-        F: Into<FileIdNewType>,
-    {
-        let Self { sources, .. } = self;
-        let FileIdNewType(main_source) = main_source.into();
-        let main_source = sources
-            .get(&main_source)
-            .ok_or_else(|| TypstAsLibError::MainSourceFileDoesNotExist(main_source))?;
-        let world = TypstWorld {
-            library: Default::default(),
-            collection: self,
-            main_source,
-        };
-        let doc = typst::compile(&world, tracer)?;
-        Ok(doc)
+    fn resolve_with_file_resolver(&self, id: FileId) -> Result<Source, FileError> {
+        let TypstTemplateCollection { file_resolver, .. } = self;
+        if let Some(file_resolver) = file_resolver {
+            // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
+            let file = file_resolver(id)?;
+            let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
+            let contents = contents.trim_start_matches('\u{feff}');
+            Ok(Source::new(id, contents.into()))
+        } else {
+            Err(FileError::NotFound(
+                id.vpath().as_rooted_path().to_path_buf(),
+            ))
+        }
     }
 }
 
@@ -425,13 +455,7 @@ impl TypstTemplate {
             source, collection, ..
         } = self;
         let library = initialize_library(collection, inputs);
-        let world = TypstWorld {
-            library: Prehashed::new(library),
-            collection,
-            main_source: &source,
-        };
-        let doc = typst::compile(&world, tracer)?;
-        Ok(doc)
+        collection.compile_with_library_and_source(tracer, library, Cow::Borrowed(source))
     }
 
     /// Just call `typst::compile()`
@@ -439,19 +463,17 @@ impl TypstTemplate {
         let Self {
             source, collection, ..
         } = self;
-        let world = TypstWorld {
-            library: Default::default(),
-            collection,
-            main_source: source,
-        };
-        let doc = typst::compile(&world, tracer)?;
-        Ok(doc)
+        collection.compile_with_library_and_source(
+            tracer,
+            Default::default(),
+            Cow::Borrowed(source),
+        )
     }
 }
 
 struct TypstWorld<'a> {
     library: Prehashed<Library>,
-    main_source: &'a Source,
+    main_source: Cow<'a, Source>,
     collection: &'a TypstTemplateCollection,
 }
 
@@ -465,39 +487,25 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn main(&self) -> Source {
-        self.main_source.clone()
+        self.main_source.as_ref().clone()
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        let TypstWorld {
-            collection:
-                TypstTemplateCollection {
-                    sources,
-                    file_resolver,
-                    ..
-                },
+        let Self {
+            collection,
+            main_source,
             ..
         } = self;
+        if id == main_source.id() {
+            return Ok(main_source.as_ref().clone());
+        }
+        let TypstTemplateCollection { sources, .. } = collection;
 
         if let Some(source) = sources.get(&id).cloned() {
             return Ok(source);
         }
 
-        if id == self.main().id() {
-            return Ok(self.main());
-        }
-
-        if let Some(file_resolver) = file_resolver {
-            // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
-            let file = file_resolver(id)?;
-            let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
-            let contents = contents.trim_start_matches('\u{feff}');
-            return Ok(Source::new(id, contents.into()));
-        }
-
-        Err(FileError::NotFound(
-            id.vpath().as_rooted_path().to_path_buf(),
-        ))
+        self.collection.resolve_with_file_resolver(id)
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
@@ -552,6 +560,8 @@ struct InjectLocation {
 pub enum TypstAsLibError {
     #[error("Typst source error: {}", 0.to_string())]
     TypstSource(EcoVec<SourceDiagnostic>),
+    #[error("Typst file error: {}", 0.to_string())]
+    TypstFile(#[from] FileError),
     #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
 }
