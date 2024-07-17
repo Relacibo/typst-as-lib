@@ -152,6 +152,8 @@ impl TypstTemplateCollection {
     /// let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
     /// fs::write(OUTPUT, pdf).expect("Could not write pdf.");
     /// ```
+    /// For the code of the `resolve_files` function see
+    /// [example](https://github.com/Relacibo/typst-as-lib/blob/1a8fd0ffcee9fad81c5df894c331a2af7c169cff/examples/resolve_files.rs#L45).
     pub fn file_resolver<F>(self, file_resolver: F) -> Self
     where
         F: Fn(FileId) -> FileResult<Bytes> + 'static,
@@ -380,6 +382,25 @@ impl TypstTemplate {
 
     /// Set optional file resolver
     /// Read source files, packages and binaries dynamically during `typst::compile`.
+    /// Example:
+    /// ```rust
+    /// static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
+
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+
+    /// static OUTPUT: &str = "./examples/output.pdf";
+    /// // in main:
+    /// let template = TypstTemplate::new(vec![font], TEMPLATE_FILE).file_resolver(resolve_files);
+    /// let mut tracer = Default::default();
+    /// let doc = template
+    ///     .compile(&mut tracer)
+    ///     .expect("typst::compile() returned an error!");
+    /// // Create pdf
+    /// let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    /// fs::write(OUTPUT, pdf).expect("Could not write pdf.");
+    /// ```
+    /// For the code of the `resolve_files` function see
+    /// [example](https://github.com/Relacibo/typst-as-lib/blob/1a8fd0ffcee9fad81c5df894c331a2af7c169cff/examples/resolve_files.rs#L45).
     pub fn file_resolver<F>(self, f: F) -> Self
     where
         F: Fn(FileId) -> FileResult<Bytes> + 'static,
