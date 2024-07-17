@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::iter;
 
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
@@ -228,15 +229,6 @@ impl TypstTemplateCollection {
             let source = self.resolve_with_file_resolver(main_source_id)?;
             Cow::Owned(source)
         };
-        self.compile_with_library_and_source(tracer, library, main_source)
-    }
-
-    fn compile_with_library_and_source<'a>(
-        &self,
-        tracer: &mut Tracer,
-        library: Library,
-        main_source: Cow<'a, Source>,
-    ) -> Result<Document, TypstAsLibError> {
         let world = TypstWorld {
             library: Prehashed::new(library),
             collection: self,
@@ -288,7 +280,7 @@ where
 }
 
 pub struct TypstTemplate {
-    source: Source,
+    source_id: FileId,
     collection: TypstTemplateCollection,
 }
 
@@ -316,9 +308,13 @@ impl TypstTemplate {
         V: Into<Vec<Font>>,
         S: Into<SourceNewType>,
     {
-        let collection = TypstTemplateCollection::new(fonts);
         let SourceNewType(source) = source.into();
-        Self { collection, source }
+        let source_id = source.id();
+        let collection = TypstTemplateCollection::new(fonts).add_sources(iter::once(source));
+        Self {
+            collection,
+            source_id,
+        }
     }
 
     /// Add sources for template
@@ -375,7 +371,13 @@ impl TypstTemplate {
         S: Into<SourceNewType>,
     {
         let SourceNewType(source) = source.into();
-        Self { source, ..self }
+        let source_id = source.id();
+        let collection = self.collection.add_sources(iter::once(source));
+        Self {
+            source_id,
+            collection,
+            ..self
+        }
     }
 
     /// Use other typst location for injected inputs
@@ -451,22 +453,22 @@ impl TypstTemplate {
         D: Into<Dict>,
     {
         let Self {
-            source, collection, ..
+            source_id,
+            collection,
+            ..
         } = self;
         let library = initialize_library(collection, inputs);
-        collection.compile_with_library_and_source(tracer, library, Cow::Borrowed(source))
+        collection.compile_with_library(tracer, library, *source_id)
     }
 
     /// Just call `typst::compile()`
     pub fn compile(&self, tracer: &mut Tracer) -> Result<Document, TypstAsLibError> {
         let Self {
-            source, collection, ..
+            source_id,
+            collection,
+            ..
         } = self;
-        collection.compile_with_library_and_source(
-            tracer,
-            Default::default(),
-            Cow::Borrowed(source),
-        )
+        collection.compile_with_library(tracer, Default::default(), *source_id)
     }
 }
 
@@ -652,5 +654,11 @@ impl From<String> for SourceNewType {
 impl From<&str> for SourceNewType {
     fn from(source: &str) -> Self {
         SourceNewType::from(source.to_owned())
+    }
+}
+
+impl From<TypstTemplate> for TypstTemplateCollection {
+    fn from(value: TypstTemplate) -> Self {
+        value.collection
     }
 }
