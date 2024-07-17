@@ -108,8 +108,6 @@ impl TypstTemplateCollection {
     /// and `inputs` is the `value_name`).
     /// Also preinitializes the library for better performance,
     /// if the template will be reused.
-    /// TypstTemplate::compile will panic in debug build,
-    /// if the location is already used.
     pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
@@ -389,8 +387,6 @@ impl TypstTemplate {
     /// and `inputs` is the `value_name`).
     /// Also preinitializes the library for better performance,
     /// if the template will be reused.
-    /// TypstTemplate::compile will panic in debug build,
-    /// if the location is already used.
     pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
