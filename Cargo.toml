@@ -21,4 +21,7 @@ typst = "0.11.1"
 
 [dev-dependencies]
 derive_typst_intoval = "0.2.1"
+tar = "0.4.41"
 typst-pdf = "0.11.1"
+ureq = "2.10.0"
+zune-inflate = "0.2.54"

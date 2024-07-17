@@ -15,13 +15,13 @@ use typst::Library;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
-#[derive(Debug, Clone)]
 pub struct TypstTemplateCollection {
     book: Prehashed<FontBook>,
     sources: HashMap<FileId, Source>,
     files: HashMap<FileId, Bytes>,
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
+    file_resolver: Option<Box<dyn Fn(FileId) -> FileResult<Bytes>>>,
 }
 
 impl TypstTemplateCollection {
@@ -45,6 +45,7 @@ impl TypstTemplateCollection {
             sources: Default::default(),
             files: Default::default(),
             inject_location: Default::default(),
+            file_resolver: Default::default(),
         }
     }
 
@@ -130,6 +131,35 @@ impl TypstTemplateCollection {
         let fonts = fonts.into_iter().map(Into::into);
         self.fonts.extend(fonts);
         self
+    }
+
+    /// Set optional file resolver
+    /// Read source files, packages and binaries dynamically during `typst::compile`.
+    /// Example:
+    /// ```rust
+    /// static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
+
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+
+    /// static OUTPUT: &str = "./examples/output.pdf";
+    /// // in main:
+    /// let template = TypstTemplate::new(vec![font], TEMPLATE_FILE).file_resolver(resolve_files);
+    /// let mut tracer = Default::default();
+    /// let doc = template
+    ///     .compile(&mut tracer)
+    ///     .expect("typst::compile() returned an error!");
+    /// // Create pdf
+    /// let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    /// fs::write(OUTPUT, pdf).expect("Could not write pdf.");
+    /// ```
+    pub fn file_resolver<F>(self, file_resolver: F) -> Self
+    where
+        F: Fn(FileId) -> FileResult<Bytes> + 'static,
+    {
+        Self {
+            file_resolver: Some(Box::new(file_resolver)),
+            ..self
+        }
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -226,7 +256,6 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct TypstTemplate {
     source: Source,
     collection: TypstTemplateCollection,
@@ -349,6 +378,18 @@ impl TypstTemplate {
         }
     }
 
+    /// Set optional file resolver
+    /// Read source files, packages and binaries dynamically during `typst::compile`.
+    pub fn file_resolver<F>(self, f: F) -> Self
+    where
+        F: Fn(FileId) -> FileResult<Bytes> + 'static,
+    {
+        Self {
+            collection: self.collection.file_resolver(f),
+            ..self
+        }
+    }
+
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
     pub fn compile_with_input<D>(
@@ -408,7 +449,12 @@ impl typst::World for TypstWorld<'_> {
 
     fn source(&self, id: FileId) -> FileResult<Source> {
         let TypstWorld {
-            collection: TypstTemplateCollection { sources, .. },
+            collection:
+                TypstTemplateCollection {
+                    sources,
+                    file_resolver,
+                    ..
+                },
             ..
         } = self;
 
@@ -420,6 +466,14 @@ impl typst::World for TypstWorld<'_> {
             return Ok(self.main());
         }
 
+        if let Some(file_resolver) = file_resolver {
+            // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
+            let file = file_resolver(id)?;
+            let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
+            let contents = contents.trim_start_matches('\u{feff}');
+            return Ok(Source::new(id, contents.into()));
+        }
+
         Err(FileError::NotFound(
             id.vpath().as_rooted_path().to_path_buf(),
         ))
@@ -427,14 +481,26 @@ impl typst::World for TypstWorld<'_> {
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
         let TypstWorld {
-            collection: TypstTemplateCollection { files, .. },
+            collection:
+                TypstTemplateCollection {
+                    files,
+                    file_resolver,
+                    ..
+                },
             ..
         } = self;
 
-        files
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| FileError::NotFound(id.vpath().as_rooted_path().to_path_buf()))
+        if let Some(bytes) = files.get(&id).cloned() {
+            return Ok(bytes);
+        }
+
+        if let Some(file_resolver) = file_resolver {
+            return file_resolver(id);
+        }
+
+        Err(FileError::NotFound(
+            id.vpath().as_rooted_path().to_path_buf(),
+        ))
     }
 
     fn font(&self, id: usize) -> Option<Font> {

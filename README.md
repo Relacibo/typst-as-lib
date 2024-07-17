@@ -20,10 +20,6 @@ static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
 
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
-// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
-
-// static IMAGE: &[u8] = include_bytes!("./images/image.png");
-
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
@@ -32,18 +28,6 @@ fn main() {
     // with different input each time).
     #[allow(unused_mut)]
     let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
-
-    // optionally set a custom inject location, which will have a
-    // better performance, when reusing the template
-    // template = template.custom_inject_location("from_rust", "inputs");
-
-    // optionally pass in some additional source files.
-    // let source = ("/other_source.typ", OTHER_SOURCE);    
-    // template = template.add_other_sources([source]);
-
-    // optionally pass in some additional binary files.
-    // let tuple = ("/images/image.png", IMAGE);
-    // template = template.add_binary_files([tuple]);
 
     // Some dummy content. We use `derive_typst_intoval` to easily
     // create `Dict`s from structs by deriving `IntoDict`;
@@ -122,11 +106,21 @@ struct ContentElement {
 ]
 ```
 
-Run example with `cargo r --example small_example`.
+Run example with: 
+```bash
+cargo r --example=small_example
+```
 
 ### TypstTemplateCollection
 
 If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
+
+### Resolving files and packages
+I don't want to put that logic into the library itself, as it is not useful for my use cases, but `TypstTemplate::file_resolver` can be used for this purpose. See example `examples/resolve_files.rs`. I used the code from [typst-as-library](https://github.com/tfachmann/typst-as-library).
+
+```bash
+cargo r --example=resolve_files
+```
 
 ## Loading fonts
 

@@ -12,11 +12,13 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 // static IMAGE: &[u8] = include_bytes!("./images/image.png");
 
+static OUTPUT: &str = "./examples/output.pdf";
+
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
-    // We can use this template more than once, if needed (Possibly 
+    // We can use this template more than once, if needed (Possibly
     // with different input each time).
     #[allow(unused_mut)]
     let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
@@ -26,7 +28,7 @@ fn main() {
     // template = template.custom_inject_location("from_rust", "inputs");
 
     // optionally pass in some additional source files.
-    // let source = ("/other_source.typ", OTHER_SOURCE);    
+    // let source = ("/other_source.typ", OTHER_SOURCE);
     // template = template.add_other_sources([source]);
 
     // optionally pass in some additional binary files.
@@ -62,7 +64,7 @@ fn main() {
 
     // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
-    fs::write("./output.pdf", pdf).expect("Could not write pdf.");
+    fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
 
 // Implement Into<Dict> manually, so we can just pass the struct
