@@ -195,7 +195,7 @@ impl TypstTemplateCollection {
         F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        let library = initialize_library(self, inputs);
+        let library = self.initialize_library(inputs)?;
         self.compile_with_library(tracer, library, main_source_id)
     }
 
@@ -251,31 +251,35 @@ impl TypstTemplateCollection {
         let contents = contents.trim_start_matches('\u{feff}');
         Ok(Source::new(id, contents.into()))
     }
-}
 
-fn initialize_library<D>(collection: &TypstTemplateCollection, inputs: D) -> Library
-where
-    D: Into<Dict>,
-{
-    let inputs = inputs.into();
-    let TypstTemplateCollection {
-        inject_location, ..
-    } = collection;
-    if let Some(InjectLocation {
-        preinitialized_library,
-        module_name,
-        value_name,
-    }) = inject_location
+    fn initialize_library<D>(&self, inputs: D) -> Result<Library, TypstAsLibError>
+    where
+        D: Into<Dict>,
     {
-        let mut lib = preinitialized_library.clone();
-        let global = lib.global.scope_mut();
-        let mut scope = Scope::new();
-        scope.define(value_name, inputs);
-        let module = Module::new(module_name, scope);
-        global.define_module(module);
-        lib
-    } else {
-        Library::builder().with_inputs(inputs).build()
+        let inputs = inputs.into();
+        let TypstTemplateCollection {
+            inject_location, ..
+        } = self;
+        let lib = if let Some(InjectLocation {
+            preinitialized_library,
+            module_name,
+            value_name,
+        }) = inject_location
+        {
+            let mut lib = preinitialized_library.clone();
+            let global = lib.global.scope_mut();
+            if global.get(module_name).is_some() {
+                return Err(TypstAsLibError::InjectLocationIsNotEmpty);
+            }
+            let mut scope = Scope::new();
+            scope.define(value_name, inputs);
+            let module = Module::new(module_name, scope);
+            global.define_module(module);
+            lib
+        } else {
+            Library::builder().with_inputs(inputs).build()
+        };
+        Ok(lib)
     }
 }
 
@@ -457,8 +461,7 @@ impl TypstTemplate {
             collection,
             ..
         } = self;
-        let library = initialize_library(collection, inputs);
-        collection.compile_with_library(tracer, library, *source_id)
+        collection.compile_with_input(tracer, *source_id, inputs)
     }
 
     /// Just call `typst::compile()`
@@ -468,7 +471,7 @@ impl TypstTemplate {
             collection,
             ..
         } = self;
-        collection.compile_with_library(tracer, Default::default(), *source_id)
+        collection.compile(tracer, *source_id)
     }
 }
 
@@ -565,6 +568,8 @@ pub enum TypstAsLibError {
     TypstFile(#[from] FileError),
     #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
+    #[error("Library could not be initialized. Inject location is not empty.")]
+    InjectLocationIsNotEmpty,
 }
 
 impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
