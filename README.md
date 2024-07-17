@@ -26,8 +26,7 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly 
     // with different input each time).
-    #[allow(unused_mut)]
-    let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
     // Some dummy content. We use `derive_typst_intoval` to easily
     // create `Dict`s from structs by deriving `IntoDict`;
