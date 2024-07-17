@@ -115,7 +115,7 @@ cargo r --example=small_example
 If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
 
 ### Resolving files and packages
-I don't want to put that logic into the library itself, as it is not useful for my use cases, but `TypstTemplate::file_resolver` can be used for this purpose. See example [examples/resolve_files.rs]([https://github.com/Relacibo/typst-as-lib/blob/1a8fd0ffcee9fad81c5df894c331a2af7c169cff/examples/resolve_files.rs#L1](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_files.rs). I used the code from [typst-as-library](https://github.com/tfachmann/typst-as-library).
+I don't want to put that logic into the library itself, as it is not useful for my use cases, but `TypstTemplate::file_resolver` can be used for this purpose. See example [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_files.rs). I used the code from [typst-as-library](https://github.com/tfachmann/typst-as-library).
 
 ```bash
 cargo r --example=resolve_files
