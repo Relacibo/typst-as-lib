@@ -1,11 +1,5 @@
-use derive_typst_intoval::{IntoDict, IntoValue};
-use ecow::eco_format;
 use std::fs;
-use std::path::{Path, PathBuf};
-use typst::diag::{FileError, FileResult, PackageError, PackageResult};
-use typst::foundations::{Bytes, Dict, IntoValue, Smart};
-use typst::syntax::package::PackageSpec;
-use typst::syntax::FileId;
+use typst::foundations::{Bytes, Smart};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
@@ -21,6 +15,7 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
+    #[allow(unused_mut)]
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .with_package_file_resolver(Default::default(), None);
     let mut tracer = Default::default();

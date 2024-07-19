@@ -7,8 +7,7 @@ use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
 use ecow::EcoVec;
 use file_resolvers::{
-    FileResolver, FileSystemFileResolver, MainSourceFileResolver, PackageResolver,
-    StaticFileResolver,
+    FileResolver, FileSystemFileResolver, MainSourceFileResolver, StaticFileResolver,
 };
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult};
@@ -23,6 +22,11 @@ use util::not_found;
 
 pub mod file_resolvers;
 pub(crate) mod util;
+
+#[cfg(feature = "packages")]
+pub mod package_resolver;
+#[cfg(feature = "packages")]
+use package_resolver::PackageResolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
@@ -116,6 +120,7 @@ impl<'a> TypstTemplateCollection<'a> {
         self
     }
 
+    #[cfg(feature = "packages")]
     pub fn with_package_file_resolver(
         mut self,
         cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
@@ -340,6 +345,7 @@ impl<'a> TypstTemplate<'a> {
         self
     }
 
+    #[cfg(feature = "packages")]
     pub fn with_package_file_resolver(
         mut self,
         cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
