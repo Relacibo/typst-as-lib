@@ -1,6 +1,6 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
-use typst::foundations::{Bytes, Dict, IntoValue, Smart};
+use typst::foundations::{Array, Bytes, Dict, IntoValue, Smart, Value};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
@@ -13,6 +13,8 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 // static IMAGE: &[u8] = include_bytes!("./images/image.png");
 
 static OUTPUT: &str = "./examples/output.pdf";
+
+static IMAGE: &[u8] = include_bytes!("./images/typst.png");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
@@ -44,6 +46,7 @@ fn main() {
                 text: Some("Text".to_owned()),
                 num1: 1,
                 num2: Some(2),
+                image: None,
             },
             ContentElement {
                 heading: "Heading2".to_owned(),
@@ -53,13 +56,36 @@ fn main() {
         ],
     };
 
+    let elem1 = Dict::from_iter([
+        ("heading".into(), Value::Str("Heading".into())),
+        ("text".into(), Value::Str("Text".into())),
+        ("num1".into(), Value::Int(1)),
+        ("num2".into(), Value::Int(2)),
+        ("image".into(), Value::Bytes(Bytes::from(IMAGE))),
+    ]);
+    let elem1 = Value::Dict(elem1);
+
+    let elem2 = Dict::from_iter([
+        ("heading".into(), Value::Str("Heading2".into())),
+        ("text".into(), Value::None),
+        ("num1".into(), Value::Int(1)),
+        ("num2".into(), Value::None),
+        ("image".into(), Value::None),
+    ]);
+    let elem2 = Value::Dict(elem2);
+
+    let a = Array::from_iter([elem1, elem2]);
+    let a = Value::Array(a);
+    let mut dict = Dict::new();
+    dict.extend([("v".into(), a)]);
+
     let mut tracer = Default::default();
 
     // Run it
     // Run `template.compile(&mut tracer)` to run typst script
     // without any input.
     let doc = template
-        .compile_with_input(&mut tracer, content)
+        .compile_with_input(&mut tracer, dict)
         .expect("typst::compile() returned an error!");
 
     // Create pdf
@@ -86,4 +112,5 @@ struct ContentElement {
     text: Option<String>,
     num1: i32,
     num2: Option<i32>,
+    image: Option<Vec<u8>>,
 }
