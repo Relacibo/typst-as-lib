@@ -6,11 +6,11 @@ use std::rc::Rc;
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
 use ecow::EcoVec;
-use file_resolvers::{
+use file_resolver::{
     FileResolver, FileSystemFileResolver, MainSourceFileResolver, StaticFileResolver,
 };
 use thiserror::Error;
-use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult};
+use typst::diag::{FileError, FileResult, SourceDiagnostic};
 use typst::eval::Tracer;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
@@ -20,7 +20,7 @@ use typst::text::{Font, FontBook};
 use typst::Library;
 use util::not_found;
 
-pub mod file_resolvers;
+pub mod file_resolver;
 pub(crate) mod util;
 
 #[cfg(feature = "packages")]

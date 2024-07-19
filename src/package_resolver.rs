@@ -10,7 +10,7 @@ use typst::{
 };
 
 use crate::{
-    file_resolvers::FileResolver,
+    file_resolver::FileResolver,
     util::{bytes_to_source, not_found},
 };
 
