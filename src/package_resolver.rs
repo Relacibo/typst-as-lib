@@ -37,12 +37,11 @@ impl PackageResolver {
         SourceOrBytesCreator: CreateBytesOrSource<T>,
     {
         let Self { ureq, cache } = self;
-        let sobc = SourceOrBytesCreator;
         let Some(package) = id.package() else {
             return Err(not_found(id));
         };
         if let Some(res) = cache.as_ref().borrow().get(&id) {
-            return sobc.try_create(id, res);
+            return SourceOrBytesCreator.try_create(id, res);
         }
         let PackageSpec {
             namespace,
@@ -108,7 +107,7 @@ impl PackageResolver {
         }
 
         let bytes = cache.get(&id).ok_or_else(|| not_found(id))?;
-        sobc.try_create(id, bytes)
+        SourceOrBytesCreator.try_create(id, bytes)
     }
 }
 
