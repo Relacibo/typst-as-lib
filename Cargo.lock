@@ -100,6 +100,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "binstall-tar"
+version = "0.4.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3620d72763b5d8df3384f3b2ec47dc5885441c2abbd94dd32197167d08b014a"
+dependencies = [
+ "filetime",
+ "libc",
+ "xattr",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1947,10 +1958,12 @@ dependencies = [
 name = "typst-as-lib"
 version = "0.5.1"
 dependencies = [
+ "binstall-tar",
  "chrono",
  "comemo",
  "derive_typst_intoval",
  "ecow",
+ "flate2",
  "tar",
  "thiserror",
  "typst",
