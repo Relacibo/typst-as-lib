@@ -134,6 +134,14 @@ impl<'a> TypstTemplateCollection<'a> {
 
     /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
     /// and binaries.
+    /// 
+    /// `sources` The item of the IntoIterator can be of types:
+    ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///   - `(&str, &str/String)`, where &str is the absolute
+    ///     virtual path of the Source file.
+    ///   - `(typst::syntax::FileId, &str/String)`
+    ///   - `typst::syntax::Source`
+    ///
     pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
     where
         IS: IntoIterator<Item = S>,
@@ -330,7 +338,16 @@ pub struct TypstTemplate<'a> {
 
 impl<'a> TypstTemplate<'a> {
     /// Initialize with fonts and a source file.
+    /// 
+    /// `source` can be of types:
+    ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///   - `(&str, &str/String)`, where &str is the absolute
+    ///     virtual path of the Source file.
+    ///   - `(typst::syntax::FileId, &str/String)`
+    ///   - `typst::syntax::Source`
     ///
+    /// (`&str/String` is always the template file content)
+    /// 
     /// Example:
     /// ```rust
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
@@ -393,6 +410,15 @@ impl<'a> TypstTemplate<'a> {
 
     /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
     /// and binaries.
+    /// 
+    /// `sources` The item of the IntoIterator can be of types:
+    ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
+    ///   - `(&str, &str/String)`, where &str is the absolute
+    ///     virtual path of the Source file.
+    ///   - `(typst::syntax::FileId, &str/String)`
+    ///   - `typst::syntax::Source`
+    ///
+    /// (`&str/String` is always the template file content)
     pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
     where
         IS: IntoIterator<Item = S>,
