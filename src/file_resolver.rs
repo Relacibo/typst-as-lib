@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 use typst::{
     diag::{FileError, FileResult},
     foundations::Bytes,

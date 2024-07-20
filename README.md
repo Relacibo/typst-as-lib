@@ -102,7 +102,11 @@ See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolv
 cargo r --example=resolve_files --features=package
 ```
 
-### TypstTemplateCollection
+### Custom file resolver
+
+You can also write your own file resolver. You need to implement the Trait `FileResolver` and  pass it to the `TypstTemplate::add_file_resolver` function.
+
+## TypstTemplateCollection
 
 If you want to compile multiple typst (main) source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_static_file_resolver` first.
 `TypstTemplate` is just a wrapper around `TypstTemplateCollection`, that also saves a `FileId` for the main source file.
