@@ -6,7 +6,10 @@ use std::rc::Rc;
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
 use ecow::EcoVec;
-use file_resolver::{FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver};
+use file_resolver::{
+    FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
+    StaticSourceFileResolver,
+};
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic};
 use typst::eval::Tracer;
@@ -132,9 +135,8 @@ impl<'a> TypstTemplateCollection<'a> {
         self.file_resolvers.push(Box::new(file_resolver));
     }
 
-    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
-    /// and binaries.
-    /// 
+    /// Adds the `StaticSourceFileResolver` to the file resolvers. It creates `HashMap`s for sources.
+    ///
     /// `sources` The item of the IntoIterator can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -142,29 +144,44 @@ impl<'a> TypstTemplateCollection<'a> {
     ///   - `(typst::syntax::FileId, &str/String)`
     ///   - `typst::syntax::Source`
     ///
-    pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
+    /// (`&str/String` is always the template file content)
+    pub fn with_static_source_file_resolver<IS, S>(mut self, sources: IS) -> Self
     where
         IS: IntoIterator<Item = S>,
         S: Into<SourceNewType>,
-        IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
     {
-        self.with_static_file_resolver_mut(sources, binaries);
+        self.with_static_source_file_resolver_mut(sources);
         self
     }
 
-    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
-    /// and binaries.
-    pub fn with_static_file_resolver_mut<IS, S, IB, F, B>(&mut self, sources: IS, binaries: IB)
+    /// Adds the `StaticSourceFileResolver` to the file resolvers. It creates `HashMap`s for sources.
+    pub fn with_static_source_file_resolver_mut<IS, S>(&mut self, sources: IS)
     where
         IS: IntoIterator<Item = S>,
         S: Into<SourceNewType>,
+    {
+        self.add_file_resolver_mut(StaticSourceFileResolver::new(sources));
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for binaries.
+    pub fn with_static_file_resolver<IB, F, B>(mut self, binaries: IB) -> Self
+    where
         IB: IntoIterator<Item = (F, B)>,
         F: Into<FileIdNewType>,
         B: Into<Bytes>,
     {
-        self.add_file_resolver_mut(StaticFileResolver::new(sources, binaries));
+        self.with_static_file_resolver_mut(binaries);
+        self
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for binaries.
+    pub fn with_static_file_resolver_mut<IB, F, B>(&mut self, binaries: IB)
+    where
+        IB: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
+        self.add_file_resolver_mut(StaticFileResolver::new(binaries));
     }
 
     /// Adds `FileSystemResolver` to the file resolvers, a resolver that can resolve
@@ -338,7 +355,7 @@ pub struct TypstTemplate<'a> {
 
 impl<'a> TypstTemplate<'a> {
     /// Initialize with fonts and a source file.
-    /// 
+    ///
     /// `source` can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -347,7 +364,7 @@ impl<'a> TypstTemplate<'a> {
     ///   - `typst::syntax::Source`
     ///
     /// (`&str/String` is always the template file content)
-    /// 
+    ///
     /// Example:
     /// ```rust
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
@@ -408,9 +425,8 @@ impl<'a> TypstTemplate<'a> {
         self
     }
 
-    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
-    /// and binaries.
-    /// 
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for sources.
+    ///
     /// `sources` The item of the IntoIterator can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -419,16 +435,25 @@ impl<'a> TypstTemplate<'a> {
     ///   - `typst::syntax::Source`
     ///
     /// (`&str/String` is always the template file content)
-    pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
+    pub fn with_static_source_file_resolver<IS, S>(mut self, sources: IS) -> Self
     where
         IS: IntoIterator<Item = S>,
         S: Into<SourceNewType>,
+    {
+        self.collection
+            .with_static_source_file_resolver_mut(sources);
+        self
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for binaries.
+    pub fn with_static_file_resolver<IB, F, B>(mut self, binaries: IB) -> Self
+    where
         IB: IntoIterator<Item = (F, B)>,
         F: Into<FileIdNewType>,
         B: Into<Bytes>,
     {
         self.collection
-            .with_static_file_resolver_mut(sources, binaries);
+            .with_static_file_resolver_mut(binaries);
         self
     }
 

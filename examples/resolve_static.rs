@@ -11,16 +11,14 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 static OUTPUT: &str = "./examples/output.pdf";
 
-#[cfg(feature = "packages")]
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    #[allow(unused_mut)]
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-    .with_static_file_resolver([], [("./images/typst.png", IMAGE)]);
+        .with_static_file_resolver([("./images/typst.png", IMAGE)]);
     let mut tracer = Default::default();
 
     // Run it
@@ -31,9 +29,4 @@ fn main() {
     // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
-}
-
-#[cfg(not(feature = "packages"))]
-fn main() {
-    eprintln!("You need to run this with flag `--features=packages`!")
 }

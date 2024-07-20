@@ -41,19 +41,15 @@ impl FileResolver for MainSourceFileResolver {
 }
 
 #[derive(Debug, Clone)]
-pub struct StaticFileResolver {
+pub struct StaticSourceFileResolver {
     sources: HashMap<FileId, Source>,
-    binaries: HashMap<FileId, Bytes>,
 }
 
-impl StaticFileResolver {
-    pub(crate) fn new<IS, S, IB, F, B>(sources: IS, binaries: IB) -> Self
+impl StaticSourceFileResolver {
+    pub(crate) fn new<IS, S>(sources: IS) -> Self
     where
         IS: IntoIterator<Item = S>,
         S: Into<SourceNewType>,
-        IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
     {
         let sources = sources
             .into_iter()
@@ -62,6 +58,32 @@ impl StaticFileResolver {
                 (s.id(), s)
             })
             .collect();
+        Self { sources }
+    }
+}
+
+impl FileResolver for StaticSourceFileResolver {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
+        Err(not_found(id))
+    }
+
+    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
+        self.sources.get(&id).cloned().ok_or_else(|| not_found(id))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StaticFileResolver {
+    binaries: HashMap<FileId, Bytes>,
+}
+
+impl StaticFileResolver {
+    pub(crate) fn new<IB, F, B>(binaries: IB) -> Self
+    where
+        IB: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
         let binaries = binaries
             .into_iter()
             .map(|(id, b)| {
@@ -69,7 +91,7 @@ impl StaticFileResolver {
                 (id, b.into())
             })
             .collect();
-        Self { sources, binaries }
+        Self { binaries }
     }
 }
 
@@ -79,7 +101,7 @@ impl FileResolver for StaticFileResolver {
     }
 
     fn resolve_source(&self, id: FileId) -> FileResult<Source> {
-        self.sources.get(&id).cloned().ok_or_else(|| not_found(id))
+        Err(not_found(id))
     }
 }
 
