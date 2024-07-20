@@ -9,6 +9,7 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 static OUTPUT: &str = "./examples/output.pdf";
 
+#[cfg(feature = "packages")]
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
@@ -28,4 +29,9 @@ fn main() {
     // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
+}
+
+#[cfg(not(feature = "packages"))]
+fn main() {
+    eprintln!("You need to run this with flag `--features=packages`!")
 }
