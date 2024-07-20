@@ -12,7 +12,7 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 static OUTPUT: &str = "./examples/output.pdf";
 
-static IMAGE: &[u8] = include_bytes!("./images/typst.png");
+static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");

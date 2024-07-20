@@ -14,3 +14,10 @@ This report is embedded in the
 ArtosFlow project. ArtosFlow is a
 project of the Artos Institute.
 ```]
+
+#figure(
+  image("./images/typst.png", width: 60pt),
+  caption: [
+    Typst logo
+  ],
+)

@@ -5,6 +5,8 @@ use typst_as_lib::TypstTemplate;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
 
+static ROOT: &str = "./examples/templates/";
+
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 static OUTPUT: &str = "./examples/output.pdf";
@@ -18,6 +20,7 @@ fn main() {
     // with different input each time).
     #[allow(unused_mut)]
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .with_file_system_resolver(ROOT)
         .with_package_file_resolver(Default::default(), None);
     let mut tracer = Default::default();
 

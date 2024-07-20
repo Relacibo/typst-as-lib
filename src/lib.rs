@@ -543,9 +543,15 @@ impl From<FileIdNewType> for FileId {
     }
 }
 
+impl From<(&str, &str)> for FileIdNewType {
+    fn from((root, path): (&str, &str)) -> Self {
+        FileIdNewType(FileId::new(None, VirtualPath::within_root(root, path)))
+    }
+}
+
 impl From<&str> for FileIdNewType {
     fn from(value: &str) -> Self {
-        FileIdNewType(FileId::new(None, VirtualPath::new(value)))
+        FileIdNewType(FileId::new(None, VirtualPath::(value)))
     }
 }
 
