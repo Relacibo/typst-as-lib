@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 use typst::{
     diag::{FileError, FileResult},
     foundations::Bytes,
@@ -90,6 +90,10 @@ pub struct FileSystemResolver {
 
 impl FileSystemResolver {
     pub fn new(root: PathBuf) -> Self {
+        let mut root = root.clone();
+        // trailing slash is necessary for resolve function, which is, what this 'hack' does
+        // https://users.rust-lang.org/t/trailing-in-paths/43166/9
+        root.push("");
         Self { root }
     }
 }
@@ -100,6 +104,7 @@ impl FileSystemResolver {
             return Err(not_found(id));
         }
         let Self { root } = self;
+
         let path = id.vpath().resolve(&root).ok_or(FileError::AccessDenied)?;
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
         Ok(content.into())

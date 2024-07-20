@@ -5,7 +5,7 @@ use typst_as_lib::TypstTemplate;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
 
-static ROOT: &str = "./examples/templates/";
+static ROOT: &str = "./examples/templates";
 
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
