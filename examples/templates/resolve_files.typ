@@ -1,5 +1,6 @@
 // from https://typst.app/universe/package/codelst
 #import "@preview/codelst:2.0.1": sourcecode
+#import "function.typ": alert
 
 #sourcecode[```typ
 #show "ArtosFlow": name => box[
@@ -21,3 +22,4 @@ project of the Artos Institute.
     Typst logo
   ],
 )
+#alert[Problem]

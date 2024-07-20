@@ -69,20 +69,28 @@ Run example with:
 cargo r --example=small_example
 ```
 
-### Resolving files in memory
+## Resolving files
+### Binaries
 Use `TypstTemplate::with_static_file_resolver` and add the binaries as key value pairs (`(file_name, &[u8])`).
 
-For `Source`s use `TypstTemplate::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`).
+### Sources
+Use `TypstTemplate::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`).
 
-### Resolving files and packages
 
-Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. 
 
+### Local files
+Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. The root should be the template folder. Files cannot be resolved, if they are outside of root.
+
+### Packages files
 Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
 
+### Examples
+#### Static binaries and sources
 ```bash
 cargo r --example=resolve_static
 ```
+
+#### Local files and remote packages
 
 See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver. The `package` feature needs to be enabled.
 
