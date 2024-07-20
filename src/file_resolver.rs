@@ -75,26 +75,26 @@ impl StaticFileResolver {
 
 impl FileResolver for StaticFileResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
-        self.binaries.get(&id).cloned().ok_or(not_found(id))
+        self.binaries.get(&id).cloned().ok_or_else(|| not_found(id))
     }
 
     fn resolve_source(&self, id: FileId) -> FileResult<Source> {
-        self.sources.get(&id).cloned().ok_or(not_found(id))
+        self.sources.get(&id).cloned().ok_or_else(|| not_found(id))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct FileSystemFileResolver {
+pub struct FileSystemResolver {
     root: PathBuf,
 }
 
-impl FileSystemFileResolver {
+impl FileSystemResolver {
     pub fn new(root: PathBuf) -> Self {
         Self { root }
     }
 }
 
-impl FileSystemFileResolver {
+impl FileSystemResolver {
     fn resolve_bytes(&self, id: FileId) -> FileResult<Vec<u8>> {
         if id.package().is_some() {
             return Err(not_found(id));
@@ -106,7 +106,7 @@ impl FileSystemFileResolver {
     }
 }
 
-impl FileResolver for FileSystemFileResolver {
+impl FileResolver for FileSystemResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
         let b = self.resolve_bytes(id)?;
         Ok(b.into())
