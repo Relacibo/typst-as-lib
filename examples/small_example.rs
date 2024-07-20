@@ -43,14 +43,14 @@ fn dummy_data() -> Content {
     Content {
         v: vec![
             ContentElement {
-                heading: "Heading".to_owned(),
-                text: Some("Text".to_owned()),
+                heading: "Foo".to_owned(),
+                text: Some("Hello World!".to_owned()),
                 num1: 1,
-                num2: Some(2),
+                num2: Some(42),
                 image: Some(Bytes::from(IMAGE)),
             },
             ContentElement {
-                heading: "Heading2".to_owned(),
+                heading: "Bar".to_owned(),
                 num1: 2,
                 ..Default::default()
             },
