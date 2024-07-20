@@ -20,7 +20,7 @@ fn main() {
     // with different input each time).
     #[allow(unused_mut)]
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-    .with_static_file_resolver([], [("./images/typst.png", IMAGE)]);
+      .with_static_file_resolver([], [("./images/typst.png", IMAGE)]);
     let mut tracer = Default::default();
 
     // Run it

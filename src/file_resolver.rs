@@ -7,7 +7,7 @@ use typst::{
 
 use crate::{
     util::{bytes_to_source, not_found},
-    FileIdNewType, SourceNewType,
+    IntoBytes, IntoFileId, IntoSource,
 };
 
 pub trait FileResolver {
@@ -50,26 +50,27 @@ impl StaticFileResolver {
     pub(crate) fn new<IS, S, IB, F, B>(sources: IS, binaries: IB) -> Self
     where
         IS: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
         IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        F: IntoFileId,
+        B: IntoBytes,
     {
-        let sources = sources
-            .into_iter()
-            .map(|s| {
-                let SourceNewType(s) = s.into();
-                (s.id(), s)
-            })
-            .collect();
-        let binaries = binaries
-            .into_iter()
-            .map(|(id, b)| {
-                let FileIdNewType(id) = id.into();
-                (id, b.into())
-            })
-            .collect();
-        Self { sources, binaries }
+        let mut collected_sources = HashMap::new();
+        for source in sources.into_iter() {
+            let source: Source = source.into_source();
+            collected_sources.insert(source.id(), source);
+        }
+        let mut collected_binaries = HashMap::new();
+        for (file_id, binary) in binaries.into_iter() {
+            let file_id = file_id.into_file_id();
+            let binary = binary.into_bytes();
+            collected_binaries.insert(file_id, binary);
+        }
+
+        Self {
+            sources: collected_sources,
+            binaries: collected_binaries,
+        }
     }
 }
 

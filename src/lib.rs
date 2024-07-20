@@ -134,7 +134,7 @@ impl<'a> TypstTemplateCollection<'a> {
 
     /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
     /// and binaries.
-    /// 
+    ///
     /// `sources` The item of the IntoIterator can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -145,10 +145,10 @@ impl<'a> TypstTemplateCollection<'a> {
     pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
     where
         IS: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
         IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        F: IntoFileId,
+        B: IntoBytes,
     {
         self.with_static_file_resolver_mut(sources, binaries);
         self
@@ -159,10 +159,10 @@ impl<'a> TypstTemplateCollection<'a> {
     pub fn with_static_file_resolver_mut<IS, S, IB, F, B>(&mut self, sources: IS, binaries: IB)
     where
         IS: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
         IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        F: IntoFileId,
+        B: IntoBytes,
     {
         self.add_file_resolver_mut(StaticFileResolver::new(sources, binaries));
     }
@@ -237,7 +237,7 @@ impl<'a> TypstTemplateCollection<'a> {
         inputs: D,
     ) -> Result<Document, TypstAsLibError>
     where
-        F: Into<FileIdNewType>,
+        F: IntoFileId,
         D: Into<Dict>,
     {
         let library = self.initialize_library(inputs)?;
@@ -251,7 +251,7 @@ impl<'a> TypstTemplateCollection<'a> {
         main_source_id: F,
     ) -> Result<Document, TypstAsLibError>
     where
-        F: Into<FileIdNewType>,
+        F: IntoFileId,
     {
         self.compile_with_library(tracer, Default::default(), main_source_id)
     }
@@ -263,9 +263,9 @@ impl<'a> TypstTemplateCollection<'a> {
         main_source_id: F,
     ) -> Result<Document, TypstAsLibError>
     where
-        F: Into<FileIdNewType>,
+        F: IntoFileId,
     {
-        let FileIdNewType(main_source_id) = main_source_id.into();
+        let main_source_id = main_source_id.into_file_id();
         let main_source = self.resolve_source(main_source_id)?;
         let world = TypstWorld {
             library: Prehashed::new(library),
@@ -338,7 +338,7 @@ pub struct TypstTemplate<'a> {
 
 impl<'a> TypstTemplate<'a> {
     /// Initialize with fonts and a source file.
-    /// 
+    ///
     /// `source` can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -347,7 +347,7 @@ impl<'a> TypstTemplate<'a> {
     ///   - `typst::syntax::Source`
     ///
     /// (`&str/String` is always the template file content)
-    /// 
+    ///
     /// Example:
     /// ```rust
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
@@ -356,12 +356,12 @@ impl<'a> TypstTemplate<'a> {
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
     /// let template = TypstTemplate::new(vec![font], TEMPLATE);
     /// ```
-    pub fn new<V, S>(fonts: V, source_id: S) -> Self
+    pub fn new<V, S>(fonts: V, source: S) -> Self
     where
         V: Into<Vec<Font>>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
     {
-        let SourceNewType(source) = source_id.into();
+        let source = source.into_source();
         let source_id = source.id();
         let mut collection = TypstTemplateCollection::new(fonts);
         collection
@@ -410,7 +410,7 @@ impl<'a> TypstTemplate<'a> {
 
     /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
     /// and binaries.
-    /// 
+    ///
     /// `sources` The item of the IntoIterator can be of types:
     ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
     ///   - `(&str, &str/String)`, where &str is the absolute
@@ -419,13 +419,13 @@ impl<'a> TypstTemplate<'a> {
     ///   - `typst::syntax::Source`
     ///
     /// (`&str/String` is always the template file content)
-    pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
+    pub fn with_static_file_resolver<IS, S, IB, B, F>(mut self, sources: IS, binaries: IB) -> Self
     where
         IS: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
         IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        F: IntoFileId,
+        B: IntoBytes,
     {
         self.collection
             .with_static_file_resolver_mut(sources, binaries);
@@ -553,87 +553,102 @@ impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
-pub struct FileIdNewType(FileId);
+pub trait IntoFileId {
+    fn into_file_id(self) -> FileId;
+}
 
-impl From<FileId> for FileIdNewType {
-    fn from(value: FileId) -> Self {
-        FileIdNewType(value)
+impl IntoFileId for FileId {
+    fn into_file_id(self) -> FileId {
+        self
     }
 }
 
-impl From<FileIdNewType> for FileId {
-    fn from(file_id: FileIdNewType) -> Self {
-        let FileIdNewType(file_id) = file_id;
-        file_id
+impl IntoFileId for &str {
+    fn into_file_id(self) -> FileId {
+        FileId::new(None, VirtualPath::new(self))
     }
 }
 
-impl From<&str> for FileIdNewType {
-    fn from(value: &str) -> Self {
-        FileIdNewType(FileId::new(None, VirtualPath::new(value)))
+impl IntoFileId for (PackageSpec, &str) {
+    fn into_file_id(self) -> FileId {
+        let (p, id) = self;
+        FileId::new(Some(p), VirtualPath::new(id))
     }
 }
 
-impl From<(PackageSpec, &str)> for FileIdNewType {
-    fn from((p, id): (PackageSpec, &str)) -> Self {
-        FileIdNewType(FileId::new(Some(p), VirtualPath::new(id)))
+pub trait IntoSource {
+    fn into_source(self) -> Source;
+}
+
+impl IntoSource for Source {
+    fn into_source(self) -> Source {
+        self
     }
 }
 
-#[derive(Clone, Debug, Hash)]
-pub struct SourceNewType(Source);
-
-impl From<Source> for SourceNewType {
-    fn from(source: Source) -> Self {
-        SourceNewType(source)
-    }
-}
-
-impl From<SourceNewType> for Source {
-    fn from(source: SourceNewType) -> Self {
-        let SourceNewType(source) = source;
+impl IntoSource for (&str, String) {
+    fn into_source(self) -> Source {
+        let (path, source) = self;
+        let id = FileId::new(None, VirtualPath::new(path));
+        let source = Source::new(id, source);
         source
     }
 }
 
-impl From<(&str, String)> for SourceNewType {
-    fn from((path, source): (&str, String)) -> Self {
-        let id = FileId::new(None, VirtualPath::new(path));
+impl IntoSource for (&str, &str) {
+    fn into_source(self) -> Source {
+        let (path, source) = self;
+        (path, source.to_owned()).into_source()
+    }
+}
+
+impl IntoSource for (FileId, String) {
+    fn into_source(self) -> Source {
+        let (id, source) = self;
         let source = Source::new(id, source);
-        SourceNewType(source)
+        source
     }
 }
 
-impl From<(&str, &str)> for SourceNewType {
-    fn from((path, source): (&str, &str)) -> Self {
-        SourceNewType::from((path, source.to_owned()))
+impl IntoSource for (FileId, &str) {
+    fn into_source(self) -> Source {
+        let (id, source) = self;
+        (id, source.to_owned()).into_source()
     }
 }
 
-impl From<(FileId, String)> for SourceNewType {
-    fn from((id, source): (FileId, String)) -> Self {
-        let source = Source::new(id, source);
-        SourceNewType(source)
+impl IntoSource for String {
+    fn into_source(self) -> Source {
+        let source = Source::detached(self);
+        source
     }
 }
 
-impl From<(FileId, &str)> for SourceNewType {
-    fn from((id, source): (FileId, &str)) -> Self {
-        SourceNewType::from((id, source.to_owned()))
+impl IntoSource for &str {
+    fn into_source(self) -> Source {
+        self.to_owned().into_source()
     }
 }
 
-impl From<String> for SourceNewType {
-    fn from(source: String) -> Self {
-        let source = Source::detached(source);
-        SourceNewType(source)
+trait IntoBytes {
+    fn into_bytes(self) -> Bytes;
+}
+
+impl IntoBytes for Bytes {
+    fn into_bytes(self) -> Bytes {
+        self
     }
 }
 
-impl From<&str> for SourceNewType {
-    fn from(source: &str) -> Self {
-        SourceNewType::from(source.to_owned())
+impl IntoBytes for Vec<u8> {
+    fn into_bytes(self) -> Bytes {
+        Bytes::from(self)
+    }
+}
+
+impl IntoBytes for &[u8] {
+    fn into_bytes(self) -> Bytes {
+        Bytes::from(self)
     }
 }
 
