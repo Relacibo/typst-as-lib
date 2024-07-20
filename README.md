@@ -85,7 +85,11 @@ Resolving local files can be enabled with `TypstTemplate::with_file_system_resol
 Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
 
 ### Examples
+
 #### Static binaries and sources
+
+See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs) which uses the static file resolvers.
+
 ```bash
 cargo r --example=resolve_static
 ```
