@@ -11,6 +11,7 @@
   Text: #elem.text \
   Num1: #elem.num1 \
   Num2: #elem.num2 \
+  #if elem.image != none [#image.decode(elem.image, height: 40pt)]
   #if i < last_index [
     #pagebreak()
   ]

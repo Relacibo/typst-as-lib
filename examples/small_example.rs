@@ -1,6 +1,8 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
+use typst::diag::Trace;
+use typst::eval::Tracer;
 use std::fs;
-use typst::foundations::{Bytes, Dict, IntoValue, Smart};
+use typst::foundations::{Array, Bytes, Dict, IntoValue, Smart, Value};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
@@ -8,11 +10,9 @@ static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
 
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
-// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
-
-// static IMAGE: &[u8] = include_bytes!("./images/image.png");
-
 static OUTPUT: &str = "./examples/output.pdf";
+
+static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
@@ -20,51 +20,41 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    #[allow(unused_mut)]
-    let mut template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
-    // optionally set a custom inject location, which will have a
-    // better performance, when reusing the template
-    // template = template.custom_inject_location("from_rust", "inputs");
-
-    // optionally pass in some additional source files.
-    // let source = ("/other_source.typ", OTHER_SOURCE);
-    // template = template.add_other_sources([source]);
-
-    // optionally pass in some additional binary files.
-    // let tuple = ("/images/image.png", IMAGE);
-    // template = template.add_binary_files([tuple]);
-
-    // Some dummy content. We use `derive_typst_intoval` to easily
-    // create `Dict`s from structs by deriving `IntoDict`;
-    let content = Content {
-        v: vec![
-            ContentElement {
-                heading: "Heading".to_owned(),
-                text: Some("Text".to_owned()),
-                num1: 1,
-                num2: Some(2),
-            },
-            ContentElement {
-                heading: "Heading2".to_owned(),
-                num1: 2,
-                ..Default::default()
-            },
-        ],
-    };
-
-    let mut tracer = Default::default();
+    let mut tracer = Tracer::new();
 
     // Run it
     // Run `template.compile(&mut tracer)` to run typst script
     // without any input.
     let doc = template
-        .compile_with_input(&mut tracer, content)
+        .compile_with_input(&mut tracer, dummy_data())
         .expect("typst::compile() returned an error!");
 
     // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
+}
+
+// Some dummy content. We use `derive_typst_intoval` to easily
+// create `Dict`s from structs by deriving `IntoDict`;
+fn dummy_data() -> Content {
+    Content {
+        v: vec![
+            ContentElement {
+                heading: "Foo".to_owned(),
+                text: Some("Hello World!".to_owned()),
+                num1: 1,
+                num2: Some(42),
+                image: Some(Bytes::from(IMAGE)),
+            },
+            ContentElement {
+                heading: "Bar".to_owned(),
+                num1: 2,
+                ..Default::default()
+            },
+        ],
+    }
 }
 
 // Implement Into<Dict> manually, so we can just pass the struct
@@ -86,4 +76,5 @@ struct ContentElement {
     text: Option<String>,
     num1: i32,
     num2: Option<i32>,
+    image: Option<Bytes>,
 }

@@ -1,12 +1,14 @@
-use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::iter;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
 use ecow::EcoVec;
+use file_resolver::{FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver};
 use thiserror::Error;
-use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult};
+use typst::diag::{FileError, FileResult, SourceDiagnostic};
 use typst::eval::Tracer;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
@@ -14,27 +16,37 @@ use typst::syntax::package::PackageSpec;
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::Library;
+use util::not_found;
+
+pub mod file_resolver;
+pub(crate) mod util;
+
+#[cfg(feature = "packages")]
+pub mod package_resolver;
+#[cfg(feature = "packages")]
+use package_resolver::PackageResolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
-pub struct TypstTemplateCollection {
+pub struct TypstTemplateCollection<'a> {
     book: Prehashed<FontBook>,
-    sources: HashMap<FileId, Source>,
-    files: HashMap<FileId, Bytes>,
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
-    file_resolver: Option<Box<dyn Fn(FileId) -> FileResult<Bytes>>>,
+    file_resolvers: Vec<Box<dyn FileResolver + 'a>>,
 }
 
-impl TypstTemplateCollection {
+impl<'a> TypstTemplateCollection<'a> {
     /// Initialize with fonts.
     ///
     /// Example:
     /// ```rust
+    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
     /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
     /// // ...
-    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    /// let template = TypstTemplate::new(vec![font]);
+    /// let font = Font::new(Bytes::from(FONT), 0)
+    ///     .expect("Could not parse font!");
+    /// let template = TypstTemplate::new(vec![font])
+    ///     .with_static_file_resolver([TEMPLATE], []);
     /// ```
     pub fn new<V>(fonts: V) -> Self
     where
@@ -44,62 +56,21 @@ impl TypstTemplateCollection {
         Self {
             book: Prehashed::new(FontBook::from_fonts(&fonts)),
             fonts,
-            sources: Default::default(),
-            files: Default::default(),
             inject_location: Default::default(),
-            file_resolver: Default::default(),
+            file_resolvers: Default::default(),
         }
     }
 
-    /// Add sources for template
-    /// - `sources` The item of the IntoIterator can be of types:
-    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
-    ///     - `(&str, &str/String)`, where &str is the absolute
-    ///       virtual path of the Source file.
-    ///     - `(typst::syntax::FileId, &str/String)`
-    ///     - `typst::syntax::Source`
-    ///
-    /// (`&str/String` is always the template file content)
-    ///
-    /// Example:
-    /// ```rust
-    /// static SOURCE: &str = include_str!("./templates/source.typ");
-    /// // ...
-    /// let source = ("/source.typ", SOURCE);
-    /// template = template.add_sources([source]);
-    /// ```
-    pub fn add_sources<I, S>(mut self, sources: I) -> Self
+    /// Use other typst location for injected inputs
+    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
+    /// and `inputs` is the `value_name`).
+    /// Also preinitializes the library for better performance,
+    /// if the template will be reused.
+    pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
-        I: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: Into<String>,
     {
-        let new_sources = sources.into_iter().map(|s| {
-            let SourceNewType(s) = s.into();
-            (s.id(), s)
-        });
-        self.sources.extend(new_sources);
-        self
-    }
-
-    /// Add binary files for template
-    /// Example:
-    /// ```rust
-    /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
-    /// // ...
-    /// let tuple = ("/images/image.png", IMAGE);
-    /// template = template.add_binary_files([tuple]);
-    /// ```
-    pub fn add_binary_files<I, F, B>(mut self, files: I) -> Self
-    where
-        I: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
-    {
-        let new_files = files.into_iter().map(|(id, b)| {
-            let FileIdNewType(id) = id.into();
-            (id, b.into())
-        });
-        self.files.extend(new_files);
+        self.custom_inject_location_mut(module_name, value_name);
         self
     }
 
@@ -108,22 +79,29 @@ impl TypstTemplateCollection {
     /// and `inputs` is the `value_name`).
     /// Also preinitializes the library for better performance,
     /// if the template will be reused.
-    pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
+    pub fn custom_inject_location_mut<S>(&mut self, module_name: S, value_name: S)
     where
         S: Into<String>,
     {
-        Self {
-            inject_location: Some(InjectLocation {
-                preinitialized_library: Default::default(),
-                module_name: module_name.into(),
-                value_name: value_name.into(),
-            }),
-            ..self
-        }
+        self.inject_location = Some(InjectLocation {
+            preinitialized_library: Default::default(),
+            module_name: module_name.into(),
+            value_name: value_name.into(),
+        });
     }
 
     /// Add Fonts
     pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+        F: Into<Font>,
+    {
+        self.add_fonts_mut(fonts);
+        self
+    }
+
+    /// Add Fonts
+    pub fn add_fonts_mut<I, F>(&mut self, fonts: I) -> &mut Self
     where
         I: IntoIterator<Item = F>,
         F: Into<Font>,
@@ -133,35 +111,96 @@ impl TypstTemplateCollection {
         self
     }
 
-    /// Set optional file resolver
-    /// Read source files, packages and binaries dynamically during `typst::compile`.
-    /// Example:
-    /// ```rust
-    /// static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
-
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-
-    /// static OUTPUT: &str = "./examples/output.pdf";
-    /// // in main:
-    /// let template = TypstTemplate::new(vec![font], TEMPLATE_FILE).file_resolver(resolve_files);
-    /// let mut tracer = Default::default();
-    /// let doc = template
-    ///     .compile(&mut tracer)
-    ///     .expect("typst::compile() returned an error!");
-    /// // Create pdf
-    /// let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
-    /// fs::write(OUTPUT, pdf).expect("Could not write pdf.");
-    /// ```
-    /// For the code of the `resolve_files` function see
-    /// [example](https://github.com/Relacibo/typst-as-lib/blob/1a8fd0ffcee9fad81c5df894c331a2af7c169cff/examples/resolve_files.rs#L45).
-    pub fn file_resolver<F>(self, file_resolver: F) -> Self
+    /// Add file resolver, that implements the `FileResolver`` trait to a vec of file resolvers.
+    /// When a `FileId`` needs to be resolved by Typst, the vec will be iterated over until
+    /// one file resolver returns a file.
+    pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: Fn(FileId) -> FileResult<Bytes> + 'static,
+        F: FileResolver + 'a,
     {
-        Self {
-            file_resolver: Some(Box::new(file_resolver)),
-            ..self
-        }
+        self.add_file_resolver_mut(file_resolver);
+        self
+    }
+
+    /// Add file resolver, that implements the `FileResolver`` trait to a vec of file resolvers.
+    /// When a `FileId`` needs to be resolved by Typst, the vec will be iterated over until
+    /// one file resolver returns a file.
+    pub fn add_file_resolver_mut<F>(&mut self, file_resolver: F)
+    where
+        F: FileResolver + 'a,
+    {
+        self.file_resolvers.push(Box::new(file_resolver));
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
+    /// and binaries.
+    pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
+    where
+        IS: IntoIterator<Item = S>,
+        S: Into<SourceNewType>,
+        IB: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
+        self.with_static_file_resolver_mut(sources, binaries);
+        self
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
+    /// and binaries.
+    pub fn with_static_file_resolver_mut<IS, S, IB, F, B>(&mut self, sources: IS, binaries: IB)
+    where
+        IS: IntoIterator<Item = S>,
+        S: Into<SourceNewType>,
+        IB: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
+        self.add_file_resolver_mut(StaticFileResolver::new(sources, binaries));
+    }
+
+    /// Adds `FileSystemResolver` to the file resolvers, a resolver that can resolve
+    /// local files (when `package` is not set in `FileId`).
+    pub fn with_file_system_resolver<P>(mut self, root: P) -> Self
+    where
+        P: Into<PathBuf>,
+    {
+        self.with_file_system_resolver_mut(root);
+        self
+    }
+
+    /// Adds `FileSystemResolver` to the file resolvers, a resolver that can resolve
+    /// local files (when `package` is not set in `FileId`).
+    pub fn with_file_system_resolver_mut<P>(&mut self, root: P)
+    where
+        P: Into<PathBuf>,
+    {
+        self.add_file_resolver_mut(FileSystemResolver::new(root.into()));
+    }
+
+    #[cfg(feature = "packages")]
+    /// Adds `PackageResolver` to the file resolvers.
+    /// When `package` is set in `FileId`, it will download the package from the typst package
+    /// repository. It caches the results into `cache`.
+    pub fn with_package_file_resolver(
+        mut self,
+        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        ureq: Option<ureq::Agent>,
+    ) -> Self {
+        self.with_package_file_resolver_mut(cache, ureq);
+        self
+    }
+
+    #[cfg(feature = "packages")]
+    /// Adds `PackageResolver` to the file resolvers.
+    /// When `package` is set in `FileId`, it will download the package from the typst package
+    /// repository. It caches the results into `cache`.
+    pub fn with_package_file_resolver_mut(
+        &mut self,
+        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        ureq: Option<ureq::Agent>,
+    ) {
+        self.add_file_resolver_mut(PackageResolver::new(cache, ureq));
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -176,7 +215,7 @@ impl TypstTemplateCollection {
     /// // ...
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
     /// let template_collection = TypstTemplateCollection::new(vec![font])
-    ///     .add_sources([(TEMPLATE_ID, TEMPLATE)]);
+    ///     .add_static_file_resolver([(TEMPLATE_ID, TEMPLATE)]);
     /// // Struct that implements Into<Dict>.
     /// let inputs = todo!();
     /// let tracer = Default::default();
@@ -219,14 +258,7 @@ impl TypstTemplateCollection {
         F: Into<FileIdNewType>,
     {
         let FileIdNewType(main_source_id) = main_source_id.into();
-        let Self { sources, .. } = self;
-        let main_source = sources.get(&main_source_id);
-        let main_source = if let Some(main_source) = main_source {
-            Cow::Borrowed(main_source)
-        } else {
-            let source = self.resolve_with_file_resolver(main_source_id)?;
-            Cow::Owned(source)
-        };
+        let main_source = self.resolve_source(main_source_id)?;
         let world = TypstWorld {
             library: Prehashed::new(library),
             collection: self,
@@ -234,20 +266,6 @@ impl TypstTemplateCollection {
         };
         let doc = typst::compile(&world, tracer)?;
         Ok(doc)
-    }
-
-    fn resolve_with_file_resolver(&self, id: FileId) -> Result<Source, FileError> {
-        let TypstTemplateCollection { file_resolver, .. } = self;
-        let Some(file_resolver) = file_resolver else {
-            return Err(FileError::NotFound(
-                id.vpath().as_rooted_path().to_path_buf(),
-            ));
-        };
-        // https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L78
-        let file = file_resolver(id)?;
-        let contents = std::str::from_utf8(&file).map_err(|_| FileError::InvalidUtf8)?;
-        let contents = contents.trim_start_matches('\u{feff}');
-        Ok(Source::new(id, contents.into()))
     }
 
     fn initialize_library<D>(&self, inputs: D) -> Result<Library, TypstAsLibError>
@@ -279,23 +297,39 @@ impl TypstTemplateCollection {
         };
         Ok(lib)
     }
+
+    fn resolve_file(&self, file_id: FileId) -> FileResult<Bytes> {
+        let TypstTemplateCollection { file_resolvers, .. } = self;
+        let mut last_error = not_found(file_id);
+        for file_resolver in file_resolvers {
+            match file_resolver.resolve_binary(file_id) {
+                Ok(source) => return Ok(source),
+                Err(error) => last_error = error,
+            }
+        }
+        Err(last_error)
+    }
+
+    fn resolve_source(&self, file_id: FileId) -> FileResult<Source> {
+        let TypstTemplateCollection { file_resolvers, .. } = self;
+        let mut last_error = not_found(file_id);
+        for file_resolver in file_resolvers {
+            match file_resolver.resolve_source(file_id) {
+                Ok(source) => return Ok(source),
+                Err(error) => last_error = error,
+            }
+        }
+        Err(last_error)
+    }
 }
 
-pub struct TypstTemplate {
+pub struct TypstTemplate<'a> {
     source_id: FileId,
-    collection: TypstTemplateCollection,
+    collection: TypstTemplateCollection<'a>,
 }
 
-impl TypstTemplate {
-    /// Initialize with fonts and a given source.
-    /// - `source` can be of types:
-    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
-    ///     - `(&str, &str/String)`, where &str is the absolute
-    ///       virtual path of the Source file.
-    ///     - `(typst::syntax::FileId, &str/String)`
-    ///     - `typst::syntax::Source`
-    ///
-    /// (`&str/String` is always the template file content)
+impl<'a> TypstTemplate<'a> {
+    /// Initialize with fonts and a source file.
     ///
     /// Example:
     /// ```rust
@@ -305,80 +339,20 @@ impl TypstTemplate {
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
     /// let template = TypstTemplate::new(vec![font], TEMPLATE);
     /// ```
-    pub fn new<V, S>(fonts: V, source: S) -> Self
+    pub fn new<V, S>(fonts: V, source_id: S) -> Self
     where
         V: Into<Vec<Font>>,
         S: Into<SourceNewType>,
     {
-        let SourceNewType(source) = source.into();
+        let SourceNewType(source) = source_id.into();
         let source_id = source.id();
-        let collection = TypstTemplateCollection::new(fonts).add_sources(iter::once(source));
+        let mut collection = TypstTemplateCollection::new(fonts);
+        collection
+            .file_resolvers
+            .push(Box::new(MainSourceFileResolver::new(source)));
         Self {
             collection,
             source_id,
-        }
-    }
-
-    /// Add sources for template
-    /// - `other_sources` The item of the IntoIterator can be of types:
-    ///     - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
-    ///     - `(&str, &str/String)`, where &str is the absolute
-    ///       virtual path of the Source file.
-    ///     - `(typst::syntax::FileId, &str/String)`
-    ///     - `typst::syntax::Source`
-    ///
-    /// (`&str/String` is always the template file content)
-    ///
-    /// Example:
-    /// ```rust
-    /// static OTHER_SOURCE: &str = include_str!("./templates/other_source.typ");
-    /// // ...
-    /// let source = ("/other_source.typ", OTHER_SOURCE);
-    /// template = template.add_other_sources([source]);
-    /// ```
-    pub fn add_other_sources<I, S>(self, other_sources: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
-    {
-        Self {
-            collection: self.collection.add_sources(other_sources),
-            ..self
-        }
-    }
-
-    /// Add binary files for template
-    /// Example:
-    /// ```rust
-    /// static IMAGE: &[u8] = include_bytes!("./images/image.png");
-    /// // ...
-    /// let tuple = ("/images/image.png", IMAGE);
-    /// template = template.add_binary_files([tuple]);
-    /// ```
-    pub fn add_binary_files<I, F, B>(self, files: I) -> Self
-    where
-        I: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<Bytes>,
-    {
-        Self {
-            collection: self.collection.add_binary_files(files),
-            ..self
-        }
-    }
-
-    /// Replace main source
-    pub fn source<S>(self, source: S) -> Self
-    where
-        S: Into<SourceNewType>,
-    {
-        let SourceNewType(source) = source.into();
-        let source_id = source.id();
-        let collection = self.collection.add_sources(iter::once(source));
-        Self {
-            source_id,
-            collection,
-            ..self
         }
     }
 
@@ -387,59 +361,72 @@ impl TypstTemplate {
     /// and `inputs` is the `value_name`).
     /// Also preinitializes the library for better performance,
     /// if the template will be reused.
-    pub fn custom_inject_location<S>(self, module_name: S, value_name: S) -> Self
+    pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
     {
-        Self {
-            collection: self
-                .collection
-                .custom_inject_location(module_name, value_name),
-            ..self
-        }
+        self.collection
+            .custom_inject_location_mut(module_name, value_name);
+        self
     }
 
     /// Add Fonts
-    pub fn add_fonts<I, F>(self, fonts: I) -> Self
+    pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
     where
         I: IntoIterator<Item = F>,
         F: Into<Font>,
     {
-        Self {
-            collection: self.collection.add_fonts(fonts),
-            ..self
-        }
+        self.collection.add_fonts_mut(fonts);
+        self
     }
 
-    /// Set optional file resolver
-    /// Read source files, packages and binaries dynamically during `typst::compile`.
-    /// Example:
-    /// ```rust
-    /// static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
-
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-
-    /// static OUTPUT: &str = "./examples/output.pdf";
-    /// // in main:
-    /// let template = TypstTemplate::new(vec![font], TEMPLATE_FILE).file_resolver(resolve_files);
-    /// let mut tracer = Default::default();
-    /// let doc = template
-    ///     .compile(&mut tracer)
-    ///     .expect("typst::compile() returned an error!");
-    /// // Create pdf
-    /// let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
-    /// fs::write(OUTPUT, pdf).expect("Could not write pdf.");
-    /// ```
-    /// For the code of the `resolve_files` function see
-    /// [example](https://github.com/Relacibo/typst-as-lib/blob/1a8fd0ffcee9fad81c5df894c331a2af7c169cff/examples/resolve_files.rs#L45).
-    pub fn file_resolver<F>(self, f: F) -> Self
+    /// Add file resolver, that implements the `FileResolver`` trait to a vec of file resolvers.
+    /// When a `FileId`` needs to be resolved by Typst, the vec will be iterated over until
+    /// one file resolver returns a file.
+    pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: Fn(FileId) -> FileResult<Bytes> + 'static,
+        F: FileResolver + 'a,
     {
-        Self {
-            collection: self.collection.file_resolver(f),
-            ..self
-        }
+        self.collection.add_file_resolver_mut(file_resolver);
+        self
+    }
+
+    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for each sources
+    /// and binaries.
+    pub fn with_static_file_resolver<IS, S, IB, F, B>(mut self, sources: IS, binaries: IB) -> Self
+    where
+        IS: IntoIterator<Item = S>,
+        S: Into<SourceNewType>,
+        IB: IntoIterator<Item = (F, B)>,
+        F: Into<FileIdNewType>,
+        B: Into<Bytes>,
+    {
+        self.collection
+            .with_static_file_resolver_mut(sources, binaries);
+        self
+    }
+
+    /// Adds `FileSystemFileResolver` to the file resolvers, a resolver that can resolve
+    /// local files (when `package` is not set in `FileId`).
+    pub fn with_file_system_resolver<P>(mut self, root: P) -> Self
+    where
+        P: Into<PathBuf>,
+    {
+        self.collection.with_file_system_resolver_mut(root);
+        self
+    }
+
+    #[cfg(feature = "packages")]
+    /// Adds `PackageResolver` to the file resolvers.
+    /// When `package` is set in `FileId`, it will download the package from the typst package
+    /// repository. It caches the results into `cache`.
+    pub fn with_package_file_resolver(
+        mut self,
+        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        ureq: Option<ureq::Agent>,
+    ) -> Self {
+        self.collection.with_package_file_resolver_mut(cache, ureq);
+        self
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -473,8 +460,8 @@ impl TypstTemplate {
 
 struct TypstWorld<'a> {
     library: Prehashed<Library>,
-    main_source: Cow<'a, Source>,
-    collection: &'a TypstTemplateCollection,
+    main_source: Source,
+    collection: &'a TypstTemplateCollection<'a>,
 }
 
 impl typst::World for TypstWorld<'_> {
@@ -487,49 +474,15 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn main(&self) -> Source {
-        self.main_source.as_ref().clone()
+        self.main_source.clone()
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        let Self {
-            collection,
-            main_source,
-            ..
-        } = self;
-        if id == main_source.id() {
-            return Ok(main_source.as_ref().clone());
-        }
-        let TypstTemplateCollection { sources, .. } = collection;
-
-        if let Some(source) = sources.get(&id).cloned() {
-            return Ok(source);
-        }
-
-        self.collection.resolve_with_file_resolver(id)
+        self.collection.resolve_source(id)
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        let TypstWorld {
-            collection:
-                TypstTemplateCollection {
-                    files,
-                    file_resolver,
-                    ..
-                },
-            ..
-        } = self;
-
-        if let Some(bytes) = files.get(&id).cloned() {
-            return Ok(bytes);
-        }
-
-        if let Some(file_resolver) = file_resolver {
-            return file_resolver(id);
-        }
-
-        Err(FileError::NotFound(
-            id.vpath().as_rooted_path().to_path_buf(),
-        ))
+        self.collection.resolve_file(id)
     }
 
     fn font(&self, id: usize) -> Option<Font> {
@@ -658,8 +611,8 @@ impl From<&str> for SourceNewType {
     }
 }
 
-impl From<TypstTemplate> for TypstTemplateCollection {
-    fn from(value: TypstTemplate) -> Self {
+impl<'a> From<TypstTemplate<'a>> for TypstTemplateCollection<'a> {
+    fn from(value: TypstTemplate<'a>) -> Self {
         value.collection
     }
 }
