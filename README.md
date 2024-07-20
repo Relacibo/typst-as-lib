@@ -71,11 +71,13 @@ cargo r --example=small_example
 
 ### Resolving files in memory
 Use `TypstTemplate::with_static_file_resolver` and add the binaries as key value pairs (`(file_name, &[u8])`).
+
 For `Source`s use `TypstTemplate::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`).
 
 ### Resolving files and packages
 
 Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. 
+
 Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
 
 ```bash
