@@ -81,7 +81,7 @@ Use `TypstTemplate::with_static_source_file_resolver` and add the sources as key
 ### Local files
 Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. The root should be the template folder. Files cannot be resolved, if they are outside of root.
 
-### Packages files
+### Remote Packages
 Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
 
 ### Examples
