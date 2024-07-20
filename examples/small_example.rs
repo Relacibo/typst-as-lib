@@ -1,17 +1,13 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
-use typst::diag::Trace;
 use typst::eval::Tracer;
 use std::fs;
-use typst::foundations::{Array, Bytes, Dict, IntoValue, Smart, Value};
+use typst::foundations::{Bytes, Dict, IntoValue, Smart};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
-
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-
 static OUTPUT: &str = "./examples/output.pdf";
-
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {

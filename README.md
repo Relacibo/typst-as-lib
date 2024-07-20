@@ -1,6 +1,6 @@
 # typst-as-lib
 
-Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine. Maybe useful for someone...
+Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
 
 ## Usage
 
@@ -10,75 +10,31 @@ Small wrapper around [Typst](https://github.com/typst/typst) that makes it easie
 
 ```rust
 // main.rs
-use derive_typst_intoval::{IntoDict, IntoValue};
-use std::fs;
-use typst::foundations::{Bytes, Dict, IntoValue, Smart};
-use typst::text::Font;
-use typst_as_lib::TypstTemplate;
-
 static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
-
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+static OUTPUT: &str = "./examples/output.pdf";
+static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
     let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
-    // We can use this template more than once, if needed (Possibly 
+    // We can use this template more than once, if needed (Possibly
     // with different input each time).
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
-    // Some dummy content. We use `derive_typst_intoval` to easily
-    // create `Dict`s from structs by deriving `IntoDict`;
-    let content = Content {
-        v: vec![
-            ContentElement {
-                heading: "Heading".to_owned(),
-                text: Some("Text".to_owned()),
-                num1: 1,
-                num2: Some(2),
-            },
-            ContentElement {
-                heading: "Heading2".to_owned(),
-                num1: 2,
-                ..Default::default()
-            },
-        ],
-    };
-
-    let mut tracer = Default::default();
+    let mut tracer = Tracer::new();
 
     // Run it
     // Run `template.compile(&mut tracer)` to run typst script
     // without any input.
     let doc = template
-        .compile_with_input(&mut tracer, content)
+        .compile_with_input(&mut tracer, dummy_data())
         .expect("typst::compile() returned an error!");
 
     // Create pdf
     let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
-    fs::write("./output.pdf", pdf).expect("Could not write pdf.");
-}
-
-// Implement Into<Dict> manually, so we can just pass the struct
-// to the compile function.
-impl From<Content> for Dict {
-    fn from(value: Content) -> Self {
-        value.into_dict()
-    }
-}
-
-#[derive(Debug, Clone, IntoValue, IntoDict)]
-struct Content {
-    v: Vec<ContentElement>,
-}
-
-#[derive(Debug, Clone, Default, IntoValue, IntoDict)]
-struct ContentElement {
-    heading: String,
-    text: Option<String>,
-    num1: i32,
-    num2: Option<i32>,
+    fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
 ```
 
@@ -99,11 +55,13 @@ struct ContentElement {
   Text: #elem.text \
   Num1: #elem.num1 \
   Num2: #elem.num2 \
+  #if elem.image != none [#image.decode(elem.image, height: 40pt)]
   #if i < last_index [
     #pagebreak()
   ]
 ]
 ```
+[Full example file](https://github.com/Relacibo/typst-as-lib/blob/main/examples/small_example.rs)
 
 Run example with: 
 ```bash
@@ -112,14 +70,16 @@ cargo r --example=small_example
 
 ### TypstTemplateCollection
 
-If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_sources` first.
+If you want to compile multiple typst source files you might want to use the `TypstTemplateCollection`, which allows you to specify the source file, when calling `TypstTemplateCollection::compile`, instead of passing it to new. The source file has to be added with `TypstTemplateCollection::add_static_file_resolver` first.
 
 ### Resolving files and packages
-See [example] that uses the file and the package resolver. The `package` feature neads to be enabled.
-Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver_mut(root)`. 
+Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver_mut`. 
+Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`. 
+
+See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) that uses the file and the package resolver. The `package` feature needs to be enabled.
 
 ```bash
-cargo r --example=resolve_files
+cargo r --example=resolve_files --features=package
 ```
 
 ## Loading fonts
