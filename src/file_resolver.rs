@@ -57,12 +57,12 @@ impl StaticFileResolver {
     {
         let mut collected_sources = HashMap::new();
         for source in sources.into_iter() {
-            let source: Source = source.into_source();
+            let source: Source = source.into_source(Default::default());
             collected_sources.insert(source.id(), source);
         }
         let mut collected_binaries = HashMap::new();
         for (file_id, binary) in binaries.into_iter() {
-            let file_id = file_id.into_file_id();
+            let file_id = file_id.into_file_id(Default::default());
             let binary = binary.into_bytes();
             collected_binaries.insert(file_id, binary);
         }

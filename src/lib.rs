@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -265,7 +266,7 @@ impl<'a> TypstTemplateCollection<'a> {
     where
         F: IntoFileId,
     {
-        let main_source_id = main_source_id.into_file_id();
+        let main_source_id = main_source_id.into_file_id(Default::default());
         let main_source = self.resolve_source(main_source_id)?;
         let world = TypstWorld {
             library: Prehashed::new(library),
@@ -361,7 +362,7 @@ impl<'a> TypstTemplate<'a> {
         V: Into<Vec<Font>>,
         S: IntoSource,
     {
-        let source = source.into_source();
+        let source = source.into_source(Default::default());
         let source_id = source.id();
         let mut collection = TypstTemplateCollection::new(fonts);
         collection
@@ -553,88 +554,87 @@ impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
     }
 }
 
-pub trait IntoFileId {
-    fn into_file_id(self) -> FileId;
+pub trait IntoFileId<T = FileId> {
+    fn into_file_id(self, _phantom: PhantomData<T>) -> FileId;
 }
 
-impl IntoFileId for FileId {
-    fn into_file_id(self) -> FileId {
+impl IntoFileId<FileId> for FileId {
+    fn into_file_id(self, _phantom: PhantomData<FileId>) -> FileId {
         self
     }
 }
 
-impl IntoFileId for &str {
-    fn into_file_id(self) -> FileId {
+impl IntoFileId<&str> for &str {
+    fn into_file_id(self, _phantom: PhantomData<&str>) -> FileId {
         FileId::new(None, VirtualPath::new(self))
     }
 }
 
-impl IntoFileId for (PackageSpec, &str) {
-    fn into_file_id(self) -> FileId {
+impl IntoFileId<(PackageSpec, &str)> for (PackageSpec, &str) {
+    fn into_file_id(self, _phantom: PhantomData<(PackageSpec, &str)>) -> FileId {
         let (p, id) = self;
         FileId::new(Some(p), VirtualPath::new(id))
     }
 }
 
-pub trait IntoSource {
-    fn into_source(self) -> Source;
+pub trait IntoSource<T = Source> {
+    fn into_source(value: T) -> Source;
 }
 
-impl IntoSource for Source {
-    fn into_source(self) -> Source {
-        self
+impl IntoSource<Source> for Source {
+    fn into_source(value: Source) -> Source {
+        value
     }
 }
 
-impl IntoSource for (&str, String) {
-    fn into_source(self) -> Source {
-        let (path, source) = self;
+impl IntoSource<(&str, String)> for (&str, String) {
+    fn into_source(value: (&str, String)) -> Source {
+        let (path, source) = value;
         let id = FileId::new(None, VirtualPath::new(path));
         let source = Source::new(id, source);
         source
     }
 }
 
-impl IntoSource for (&str, &str) {
-    fn into_source(self) -> Source {
-        let (path, source) = self;
+impl IntoSource<(&str, &str)> for (&str, &str) {
+    fn into_source(value: (&str, &str)) -> Source {
+        let (path, source) = value;
         (path, source.to_owned()).into_source()
     }
 }
 
-impl IntoSource for (FileId, String) {
-    fn into_source(self) -> Source {
-        let (id, source) = self;
-        let source = Source::new(id, source);
+impl IntoSource<(FileId, String)> for (FileId, String) {
+    fn into_source(value: (FileId, String)) -> Source {
+        let (path, source) = value;
+        (path, source.to_owned()).into_source()
+    }
+}
+
+impl IntoSource<(FileId, &str)> for (FileId, &str) {
+    fn into_source(value: (FileId, &str)) -> Source {
+        let (path, source) = value;
+        (path, source.to_owned()).into_source()
+    }
+}
+
+impl IntoSource<String> for String {
+    fn into_source(value: String) -> Source {
+        let source = Source::detached(value);
         source
     }
 }
 
-impl IntoSource for (FileId, &str) {
-    fn into_source(self) -> Source {
-        let (id, source) = self;
-        (id, source.to_owned()).into_source()
+impl IntoSource<&str> for &str {
+    fn into_source(value: &str) -> Source {
+        value.to_owned().into_source(Default::default())
     }
 }
 
-impl IntoSource for String {
-    fn into_source(self) -> Source {
-        let source = Source::detached(self);
-        source
-    }
+pub trait IntoBytes<T = Bytes> {
+    fn into_bytes(value: T) -> Bytes;
 }
 
-impl IntoSource for &str {
-    fn into_source(self) -> Source {
-        self.to_owned().into_source()
-    }
-}
-
-trait IntoBytes {
-    fn into_bytes(self) -> Bytes;
-}
-
-impl IntoBytes for Bytes {
+impl IntoBytes<Bytes> for Bytes {
     fn into_bytes(self) -> Bytes {
         self
     }
