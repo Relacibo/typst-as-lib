@@ -75,7 +75,12 @@ For `Source`s use `TypstTemplate::with_static_source_file_resolver` and add the 
 
 ### Resolving files and packages
 
-Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
+Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. 
+Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`.
+
+```bash
+cargo r --example=resolve_static
+```
 
 See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver. The `package` feature needs to be enabled.
 
