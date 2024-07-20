@@ -37,6 +37,8 @@ fn main() {
 }
 ```
 
+[Full example file](https://github.com/Relacibo/typst-as-lib/blob/main/examples/small_example.rs)
+
 #### Typst code
 
 ```typ
@@ -60,8 +62,6 @@ fn main() {
   ]
 ]
 ```
-
-[Full example file](https://github.com/Relacibo/typst-as-lib/blob/main/examples/small_example.rs)
 
 Run example with:
 
