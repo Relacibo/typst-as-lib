@@ -118,6 +118,10 @@ Loading fonts is not in the scope of this library (yet?). If you are interested 
 - [This](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69) is how the typst-cli loads system fonts.
 - Here is an [example](https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216) of loading fonts from a folder.
 
+## TODO
+- allow usage of reqwest instead of ureq with a feature flag
+- fonts
+
 ## Some links, idk
 
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
