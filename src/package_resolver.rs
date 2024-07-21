@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, io::Read, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, io::Read, rc::Rc};
 
 use binstall_tar::Archive;
 use ecow::eco_format;
@@ -112,12 +112,12 @@ impl PackageResolver {
 }
 
 impl FileResolver for PackageResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
-        self.resolve_bytes(id)
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+        self.resolve_bytes(id).map(|b| Cow::Owned(b))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
-        self.resolve_bytes(id)
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+        self.resolve_bytes(id).map(|s| Cow::Owned(s))
     }
 }
 

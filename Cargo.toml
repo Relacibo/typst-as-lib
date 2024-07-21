@@ -1,6 +1,6 @@
 [package]
 name = "typst-as-lib"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 license = "MIT"
 description = "Small wrapper for typst that makes it easier to use it as a templating engine"
@@ -11,7 +11,9 @@ categories = ["template-engine"]
 exclude = ["examples/*"]
 
 [features]
-packages = ["dep:binstall-tar", "dep:flate2", "dep:ureq"]
+default = ["ureq"]
+packages = ["dep:binstall-tar", "dep:flate2"]
+ureq = ["dep:ureq"]
 
 [dependencies]
 binstall-tar = { version = "0.4.42", optional = true }

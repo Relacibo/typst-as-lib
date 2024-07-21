@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 use typst::{
     diag::{FileError, FileResult},
     foundations::Bytes,
@@ -11,8 +11,8 @@ use crate::{
 };
 
 pub trait FileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes>;
-    fn resolve_source(&self, id: FileId) -> FileResult<Source>;
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>>;
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>>;
 }
 
 #[derive(Debug, Clone)]
@@ -27,14 +27,14 @@ impl MainSourceFileResolver {
 }
 
 impl FileResolver for MainSourceFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
         Err(not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
         let Self { main_source } = self;
         if id == main_source.id() {
-            return Ok(main_source.clone());
+            return Ok(Cow::Borrowed(main_source));
         }
         Err(not_found(id))
     }
@@ -63,12 +63,15 @@ impl StaticSourceFileResolver {
 }
 
 impl FileResolver for StaticSourceFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
         Err(not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
-        self.sources.get(&id).cloned().ok_or_else(|| not_found(id))
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+        self.sources
+            .get(&id)
+            .map(|s| Cow::Borrowed(s))
+            .ok_or_else(|| not_found(id))
     }
 }
 
@@ -96,11 +99,14 @@ impl StaticFileResolver {
 }
 
 impl FileResolver for StaticFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
-        self.binaries.get(&id).cloned().ok_or_else(|| not_found(id))
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+        self.binaries
+            .get(&id)
+            .map(|b| Cow::Borrowed(b))
+            .ok_or_else(|| not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
         Err(not_found(id))
     }
 }
@@ -134,14 +140,14 @@ impl FileSystemResolver {
 }
 
 impl FileResolver for FileSystemResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Bytes> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
         let b = self.resolve_bytes(id)?;
-        Ok(b.into())
+        Ok(Cow::Owned(b.into()))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Source> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
         let file = self.resolve_bytes(id)?;
         let source = bytes_to_source(id, &file)?;
-        Ok(source)
+        Ok(Cow::Owned(source))
     }
 }

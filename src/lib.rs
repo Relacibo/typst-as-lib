@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -287,7 +288,7 @@ impl<'a> TypstTemplateCollection<'a> {
         let world = TypstWorld {
             library: Prehashed::new(library),
             collection: self,
-            main_source,
+            main_source: main_source.as_ref(),
         };
         let doc = typst::compile(&world, tracer)?;
         Ok(doc)
@@ -323,7 +324,7 @@ impl<'a> TypstTemplateCollection<'a> {
         Ok(lib)
     }
 
-    fn resolve_file(&self, file_id: FileId) -> FileResult<Bytes> {
+    fn resolve_file(&self, file_id: FileId) -> FileResult<Cow<Bytes>> {
         let TypstTemplateCollection { file_resolvers, .. } = self;
         let mut last_error = not_found(file_id);
         for file_resolver in file_resolvers {
@@ -335,7 +336,7 @@ impl<'a> TypstTemplateCollection<'a> {
         Err(last_error)
     }
 
-    fn resolve_source(&self, file_id: FileId) -> FileResult<Source> {
+    fn resolve_source(&self, file_id: FileId) -> FileResult<Cow<Source>> {
         let TypstTemplateCollection { file_resolvers, .. } = self;
         let mut last_error = not_found(file_id);
         for file_resolver in file_resolvers {
@@ -452,8 +453,7 @@ impl<'a> TypstTemplate<'a> {
         F: Into<FileIdNewType>,
         B: Into<Bytes>,
     {
-        self.collection
-            .with_static_file_resolver_mut(binaries);
+        self.collection.with_static_file_resolver_mut(binaries);
         self
     }
 
@@ -511,7 +511,7 @@ impl<'a> TypstTemplate<'a> {
 
 struct TypstWorld<'a> {
     library: Prehashed<Library>,
-    main_source: Source,
+    main_source: &'a Source,
     collection: &'a TypstTemplateCollection<'a>,
 }
 
@@ -529,11 +529,11 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        self.collection.resolve_source(id)
+        self.collection.resolve_source(id).map(|s| s.into_owned())
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        self.collection.resolve_file(id)
+        self.collection.resolve_file(id).map(|b| b.into_owned())
     }
 
     fn font(&self, id: usize) -> Option<Font> {
