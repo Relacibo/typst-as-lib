@@ -32,14 +32,14 @@ use package_resolver::PackageResolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
-pub struct TypstTemplateCollection<'a> {
+pub struct TypstTemplateCollection {
     book: Prehashed<FontBook>,
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
-    file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'a>>,
+    file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
 }
 
-impl<'a> TypstTemplateCollection<'a> {
+impl TypstTemplateCollection {
     /// Initialize with fonts.
     ///
     /// Example:
@@ -120,7 +120,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: FileResolver + Send + Sync + 'a,
+        F: FileResolver + Send + Sync + 'static,
     {
         self.add_file_resolver_mut(file_resolver);
         self
@@ -131,7 +131,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver_mut<F>(&mut self, file_resolver: F)
     where
-        F: FileResolver + Send + Sync + 'a,
+        F: FileResolver + Send + Sync + 'static,
     {
         self.file_resolvers.push(Box::new(file_resolver));
     }
@@ -349,12 +349,12 @@ impl<'a> TypstTemplateCollection<'a> {
     }
 }
 
-pub struct TypstTemplate<'a> {
+pub struct TypstTemplate {
     source_id: FileId,
-    collection: TypstTemplateCollection<'a>,
+    collection: TypstTemplateCollection,
 }
 
-impl<'a> TypstTemplate<'a> {
+impl TypstTemplate {
     /// Initialize with fonts and a source file.
     ///
     /// `source` can be of types:
@@ -420,7 +420,7 @@ impl<'a> TypstTemplate<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: FileResolver + Send + Sync + 'a,
+        F: FileResolver + Send + Sync + 'static,
     {
         self.collection.add_file_resolver_mut(file_resolver);
         self
@@ -512,7 +512,7 @@ impl<'a> TypstTemplate<'a> {
 struct TypstWorld<'a> {
     library: Prehashed<Library>,
     main_source: &'a Source,
-    collection: &'a TypstTemplateCollection<'a>,
+    collection: &'a TypstTemplateCollection,
 }
 
 impl typst::World for TypstWorld<'_> {
@@ -662,8 +662,8 @@ impl From<&str> for SourceNewType {
     }
 }
 
-impl<'a> From<TypstTemplate<'a>> for TypstTemplateCollection<'a> {
-    fn from(value: TypstTemplate<'a>) -> Self {
+impl From<TypstTemplate> for TypstTemplateCollection {
+    fn from(value: TypstTemplate) -> Self {
         value.collection
     }
 }
