@@ -1,8 +1,6 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use chrono::{Datelike, Duration, Local};
 use comemo::Prehashed;
@@ -26,6 +24,8 @@ pub mod file_resolver;
 pub(crate) mod util;
 
 #[cfg(feature = "packages")]
+use std::sync::{Arc, Mutex};
+#[cfg(feature = "packages")]
 pub mod package_resolver;
 #[cfg(feature = "packages")]
 use package_resolver::PackageResolver;
@@ -36,7 +36,7 @@ pub struct TypstTemplateCollection<'a> {
     book: Prehashed<FontBook>,
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
-    file_resolvers: Vec<Box<dyn FileResolver + 'a>>,
+    file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'a>>,
 }
 
 impl<'a> TypstTemplateCollection<'a> {
@@ -120,7 +120,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: FileResolver + 'a,
+        F: FileResolver + Send + Sync + 'a,
     {
         self.add_file_resolver_mut(file_resolver);
         self
@@ -131,7 +131,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver_mut<F>(&mut self, file_resolver: F)
     where
-        F: FileResolver + 'a,
+        F: FileResolver + Send + Sync + 'a,
     {
         self.file_resolvers.push(Box::new(file_resolver));
     }
@@ -210,7 +210,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// repository. It caches the results into `cache`.
     pub fn with_package_file_resolver(
         mut self,
-        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
         ureq: Option<ureq::Agent>,
     ) -> Self {
         self.with_package_file_resolver_mut(cache, ureq);
@@ -223,7 +223,7 @@ impl<'a> TypstTemplateCollection<'a> {
     /// repository. It caches the results into `cache`.
     pub fn with_package_file_resolver_mut(
         &mut self,
-        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
         ureq: Option<ureq::Agent>,
     ) {
         self.add_file_resolver_mut(PackageResolver::new(cache, ureq));
@@ -420,7 +420,7 @@ impl<'a> TypstTemplate<'a> {
     /// one file resolver returns a file.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
-        F: FileResolver + 'a,
+        F: FileResolver + Send + Sync + 'a,
     {
         self.collection.add_file_resolver_mut(file_resolver);
         self
@@ -473,7 +473,7 @@ impl<'a> TypstTemplate<'a> {
     /// repository. It caches the results into `cache`.
     pub fn with_package_file_resolver(
         mut self,
-        cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
         ureq: Option<ureq::Agent>,
     ) -> Self {
         self.collection.with_package_file_resolver_mut(cache, ureq);

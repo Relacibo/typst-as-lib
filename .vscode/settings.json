@@ -1,7 +1,6 @@
 {
   "rust-analyzer.cargo.features": [
-    "packages",
-    "ureq"
+    "packages"
   ],
   "typst-lsp.exportPdf": "never"
 }

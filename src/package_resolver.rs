@@ -1,10 +1,15 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap, io::Read, rc::Rc};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    io::Read,
+    sync::{Arc, Mutex},
+};
 
 use binstall_tar::Archive;
 use ecow::eco_format;
 use flate2::read::GzDecoder;
 use typst::{
-    diag::{FileResult, PackageError},
+    diag::{FileError, FileResult, PackageError},
     foundations::Bytes,
     syntax::{package::PackageSpec, FileId, Source, VirtualPath},
 };
@@ -21,11 +26,11 @@ static REQUEST_RETRY_COUNT: u32 = 3;
 #[derive(Debug, Clone)]
 pub struct PackageResolver {
     ureq: ureq::Agent,
-    cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>,
+    cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
 }
 
 impl PackageResolver {
-    pub fn new(cache: Rc<RefCell<HashMap<FileId, Vec<u8>>>>, ureq: Option<ureq::Agent>) -> Self {
+    pub fn new(cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>, ureq: Option<ureq::Agent>) -> Self {
         let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
         Self { ureq, cache }
     }
@@ -40,9 +45,14 @@ impl PackageResolver {
         let Some(package) = id.package() else {
             return Err(not_found(id));
         };
-        if let Some(res) = cache.as_ref().borrow().get(&id) {
+        let mutex_guard = cache
+            .as_ref()
+            .lock()
+            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
+        if let Some(res) = mutex_guard.get(&id) {
             return SourceOrBytesCreator.try_create(id, res);
         }
+        drop(mutex_guard);
         let PackageSpec {
             namespace,
             name,
@@ -67,7 +77,7 @@ impl PackageResolver {
 
             let status = resp.status();
             if status != 200 {
-                last_error = eco_format!("response returned unsuccessful status code {status}",);
+                last_error = eco_format!("response returned unsuccessful status code {status}");
                 continue;
             }
             response = Some(resp);
@@ -84,7 +94,10 @@ impl PackageResolver {
         let entries = archive
             .entries()
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
-        let mut cache = cache.as_ref().borrow_mut();
+        let mut mutex_guard = cache
+            .as_ref()
+            .lock()
+            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
         for entry in entries {
             let Ok(mut file) = entry else {
                 continue;
@@ -103,10 +116,9 @@ impl PackageResolver {
             let Ok(_) = file.read_to_end(&mut buf) else {
                 continue;
             };
-            cache.insert(file_id, buf);
+            mutex_guard.insert(file_id, buf);
         }
-
-        let bytes = cache.get(&id).ok_or_else(|| not_found(id))?;
+        let bytes = mutex_guard.get(&id).ok_or_else(|| not_found(id))?;
         SourceOrBytesCreator.try_create(id, bytes)
     }
 }
