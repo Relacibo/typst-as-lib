@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use chrono::{Datelike, Duration, Local};
+use chrono::{DateTime, Datelike, Duration, Local};
 use comemo::Prehashed;
 use ecow::EcoVec;
 use file_resolver::{
@@ -289,6 +289,7 @@ impl TypstTemplateCollection {
             library: Prehashed::new(library),
             collection: self,
             main_source: main_source.as_ref(),
+            now: Local::now(),
         };
         let doc = typst::compile(&world, tracer)?;
         Ok(doc)
@@ -513,6 +514,7 @@ struct TypstWorld<'a> {
     library: Prehashed<Library>,
     main_source: &'a Source,
     collection: &'a TypstTemplateCollection,
+    now: DateTime<Local>,
 }
 
 impl typst::World for TypstWorld<'_> {
@@ -529,10 +531,14 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
+        println!("resolve source!");
+        dbg!(id);
         self.collection.resolve_source(id).map(|s| s.into_owned())
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
+        println!("resolve file!");
+        dbg!(id);
         self.collection.resolve_file(id).map(|b| b.into_owned())
     }
 
@@ -541,7 +547,7 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn today(&self, offset: Option<i64>) -> Option<Datetime> {
-        let mut now = Local::now();
+        let mut now = self.now;
         if let Some(offset) = offset {
             now += Duration::hours(offset);
         }
