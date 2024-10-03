@@ -105,13 +105,7 @@ impl PackageResolver {
             let Ok(p) = file.path() else {
                 continue;
             };
-            let Some(file_name) = p.file_name() else {
-                continue;
-            };
-            let Some(file_name) = file_name.to_str() else {
-                continue;
-            };
-            let file_id = FileId::new(Some(package.clone()), VirtualPath::new(file_name));
+            let file_id = FileId::new(Some(package.clone()), VirtualPath::new(p));
             let mut buf = Vec::new();
             let Ok(_) = file.read_to_end(&mut buf) else {
                 continue;
