@@ -1,6 +1,6 @@
 [package]
 name = "typst-as-lib"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 license = "MIT"
 description = "Small wrapper for typst that makes it easier to use it as a templating engine"
@@ -18,10 +18,10 @@ binstall-tar = { version = "0.4.42", optional = true }
 chrono = "0.4.38"
 comemo = "0.4.0"
 ecow = "0.2.2"
-flate2 = { version = "1.0.30", optional = true }
-thiserror = "1.0.62"
+flate2 = { version = "1.0.34", optional = true }
+thiserror = "1.0.64"
 typst = "0.11.1"
-ureq = { version = "2.10.0", optional = true }
+ureq = { version = "2.10.1", optional = true }
 
 [dev-dependencies]
 derive_typst_intoval = "0.2.1"
