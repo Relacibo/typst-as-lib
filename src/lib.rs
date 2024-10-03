@@ -531,14 +531,10 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        println!("resolve source!");
-        dbg!(id);
         self.collection.resolve_source(id).map(|s| s.into_owned())
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        println!("resolve file!");
-        dbg!(id);
         self.collection.resolve_file(id).map(|b| b.into_owned())
     }
 
