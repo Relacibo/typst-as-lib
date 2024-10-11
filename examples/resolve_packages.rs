@@ -1,15 +1,22 @@
+#[cfg(feature = "packages")]
 use std::fs;
+#[cfg(feature = "packages")]
 use typst::foundations::{Bytes, Smart};
+#[cfg(feature = "packages")]
 use typst::text::Font;
+#[cfg(feature = "packages")]
 use typst_as_lib::TypstTemplate;
+#[cfg(feature = "packages")]
+static OUTPUT: &str = "./examples/output.pdf";
 
+#[cfg(feature = "packages")]
 static TEMPLATE_FILE: &str = include_str!("./templates/resolve_files.typ");
 
+#[cfg(feature = "packages")]
 static ROOT: &str = "./examples/templates";
 
+#[cfg(feature = "packages")]
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-
-static OUTPUT: &str = "./examples/output.pdf";
 
 #[cfg(feature = "packages")]
 fn main() {
