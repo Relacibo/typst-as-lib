@@ -121,7 +121,6 @@ Loading fonts is not in the scope of this library (yet?). If you are interested 
 ## TODO
 - allow usage of reqwest instead of ureq with a feature flag
 - fonts
-- have option to cache packages on the hard drive for PackageResolver
 
 ## Some links, idk
 
