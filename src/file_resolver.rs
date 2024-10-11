@@ -138,7 +138,7 @@ impl FileSystemResolver {
 impl FileSystemResolver {
     fn resolve_bytes(&self, id: FileId) -> FileResult<Vec<u8>> {
         // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L102C16-L102C38
-        let dir: Cow<PathBuf> = if let Some(package) = id.package() {
+        let dir: Cow<Path> = if let Some(package) = id.package() {
             let Some(data_dir) = dirs::data_dir() else {
                 return Err(FileError::Other(Some(eco_format!("No data dir set!"))));
             };
