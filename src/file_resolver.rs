@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::HashMap, path::PathBuf};
+use ecow::eco_format;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use typst::{
     diag::{FileError, FileResult},
     foundations::Bytes,
@@ -9,6 +14,10 @@ use crate::{
     util::{bytes_to_source, not_found},
     FileIdNewType, SourceNewType,
 };
+
+// https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L18
+/// The default packages sub directory within the package and package cache paths.
+pub const DEFAULT_PACKAGES_SUBDIR: &str = "typst/packages";
 
 pub trait FileResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>>;
@@ -128,12 +137,24 @@ impl FileSystemResolver {
 
 impl FileSystemResolver {
     fn resolve_bytes(&self, id: FileId) -> FileResult<Vec<u8>> {
-        if id.package().is_some() {
-            return Err(not_found(id));
-        }
-        let Self { root } = self;
+        // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L102C16-L102C38
+        let dir: Cow<PathBuf> = if let Some(package) = id.package() {
+            let Some(data_dir) = dirs::data_dir() else {
+                return Err(FileError::Other(Some(eco_format!("No data dir set!"))));
+            };
+            let subdir = Path::new(package.namespace.as_str())
+                .join(package.name.as_str())
+                .join(package.version.to_string());
+            Cow::Owned(data_dir.join(DEFAULT_PACKAGES_SUBDIR).join(subdir))
+        } else {
+            let Self { root } = self;
+            Cow::Borrowed(root)
+        };
 
-        let path = id.vpath().resolve(&root).ok_or(FileError::AccessDenied)?;
+        let path = id
+            .vpath()
+            .resolve(&dir)
+            .ok_or_else(|| FileError::NotFound(dir.to_path_buf()))?;
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
         Ok(content.into())
     }
