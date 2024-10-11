@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use chrono::{DateTime, Datelike, Duration, Local};
+use chrono::{DateTime, Datelike, Duration, Local, Utc};
 use comemo::Prehashed;
 use ecow::EcoVec;
 use file_resolver::{
@@ -289,7 +289,7 @@ impl TypstTemplateCollection {
             library: Prehashed::new(library),
             collection: self,
             main_source: main_source.as_ref(),
-            now: Local::now(),
+            now: Utc::now(),
         };
         let doc = typst::compile(&world, tracer)?;
         Ok(doc)
@@ -514,7 +514,7 @@ struct TypstWorld<'a> {
     library: Prehashed<Library>,
     main_source: &'a Source,
     collection: &'a TypstTemplateCollection,
-    now: DateTime<Local>,
+    now: DateTime<Utc>,
 }
 
 impl typst::World for TypstWorld<'_> {
