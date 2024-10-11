@@ -20,7 +20,7 @@ fn main() {
     // with different input each time).
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .with_file_system_resolver(ROOT)
-        .with_package_file_resolver(Default::default(), None);
+        .with_package_file_resolver(None);
     let mut tracer = Default::default();
 
     // Run it

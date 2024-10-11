@@ -123,6 +123,7 @@ impl FileResolver for StaticFileResolver {
 #[derive(Debug, Clone)]
 pub struct FileSystemResolver {
     root: PathBuf,
+    local_package_root: Option<PathBuf>,
 }
 
 impl FileSystemResolver {
@@ -131,23 +132,41 @@ impl FileSystemResolver {
         // trailing slash is necessary for resolve function, which is, what this 'hack' does
         // https://users.rust-lang.org/t/trailing-in-paths/43166/9
         root.push("");
-        Self { root }
+        Self {
+            root,
+            local_package_root: None,
+        }
+    }
+
+    /// Use other path to look for local packages
+    pub fn with_local_package_root(self, path: PathBuf) -> Self {
+        Self {
+            local_package_root: Some(path),
+            ..self
+        }
     }
 }
 
 impl FileSystemResolver {
     fn resolve_bytes(&self, id: FileId) -> FileResult<Vec<u8>> {
+        let Self {
+            root,
+            local_package_root,
+        } = self;
         // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L102C16-L102C38
         let dir: Cow<Path> = if let Some(package) = id.package() {
-            let Some(data_dir) = dirs::data_dir() else {
+            let data_dir = if let Some(data_dir) = local_package_root {
+                Cow::Borrowed(data_dir)
+            } else if let Some(data_dir) = dirs::data_dir() {
+                Cow::Owned(data_dir.join(DEFAULT_PACKAGES_SUBDIR))
+            } else {
                 return Err(FileError::Other(Some(eco_format!("No data dir set!"))));
             };
             let subdir = Path::new(package.namespace.as_str())
                 .join(package.name.as_str())
                 .join(package.version.to_string());
-            Cow::Owned(data_dir.join(DEFAULT_PACKAGES_SUBDIR).join(subdir))
+            Cow::Owned(data_dir.join(subdir))
         } else {
-            let Self { root } = self;
             Cow::Borrowed(root)
         };
 

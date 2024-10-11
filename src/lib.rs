@@ -211,24 +211,22 @@ impl TypstTemplateCollection {
     /// Example
     /// ```rust
     ///     let template = TypstTemplateCollection::new(vec![font])
-    ///         .with_package_file_resolver(Default::default(), None);
+    ///         .with_package_file_resolver(None);
     /// ```
     pub fn with_package_file_resolver(
         mut self,
-        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) -> Self {
-        self.with_package_file_resolver_mut(cache, ureq);
+        self.with_package_file_resolver_mut(ureq);
         self
     }
 
     #[cfg(feature = "packages")]
     pub fn with_package_file_resolver_mut(
         &mut self,
-        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) {
-        self.add_file_resolver_mut(PackageResolver::new(cache, ureq));
+        self.add_file_resolver_mut(PackageResolver::new(Default::default(), ureq));
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -477,14 +475,13 @@ impl TypstTemplate {
     /// Example
     /// ```rust
     ///     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-    ///         .with_package_file_resolver(Default::default(), None);
+    ///         .with_package_file_resolver(None);
     /// ```
     pub fn with_package_file_resolver(
         mut self,
-        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) -> Self {
-        self.collection.with_package_file_resolver_mut(cache, ureq);
+        self.collection.with_package_file_resolver_mut(ureq);
         self
     }
 

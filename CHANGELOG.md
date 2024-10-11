@@ -17,10 +17,10 @@ to
 ```rust
     let arc = Default::default();
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-        .with_package_file_resolver(PackageResolverCache::Memory(arc), None);
+        .add_file_resolver(PackageResolver::new(PackageResolverCache::Memory(arc), None));
 ```
-You also can use the filesystem now:
+You also can use the filesystem now, which is the default:
 ```rust
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-        .with_package_file_resolver(PackageResolverCache::file_system(), None);
+        .with_package_file_resolver(None);
 ```

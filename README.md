@@ -81,8 +81,47 @@ Use `TypstTemplate::with_static_source_file_resolver` and add the sources as key
 ### Local files
 Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. The root should be the template folder. Files cannot be resolved, if they are outside of root.
 
+Can be enabled like this:
+```rust
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .with_file_system_resolver("./examples/templates");
+```
+
+If you want to use another local package install path, use:
+```rust
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .add_file_resolver(
+            FileSystemResolver::new("./examples/templates")
+                .with_local_package_root("path")
+        );
+```
+
 ### Remote Packages
-Resolving packages can be enabled with `TypstTemplate::with_package_file_resolver`. The `package` feature needs to be enabled.
+The `package` feature needs to be enabled.
+
+Can be enabled like this:
+```rust
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .with_package_file_resolver(None);
+```
+
+This uses the file system as a cache. 
+
+If you want to use another cache root path, use:
+```rust
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .add_file_resolver(PackageResolver::new(
+            PackageResolverCache::FileSystem(Some(other_cache_root)), None
+        ));
+```
+
+If you want to instead use the memory as cache, use:
+```rust
+    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+        .add_file_resolver(PackageResolver::new(
+            PackageResolverCache::Memory(Default::default()), None
+        ));
+```
 
 ### Examples
 
