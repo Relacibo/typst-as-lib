@@ -92,7 +92,7 @@ If you want to use another local package install path, use:
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .add_file_resolver(
             FileSystemResolver::new("./examples/templates")
-                .with_local_package_root("path")
+                .with_local_package_root("local/packages")
         );
 ```
 
@@ -111,7 +111,7 @@ If you want to use another cache root path, use:
 ```rust
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .add_file_resolver(PackageResolver::new(
-            PackageResolverCache::FileSystem(Some(other_cache_root)), None
+            PackageResolverCache::FileSystem(Some("cache/root")), None
         ));
 ```
 
