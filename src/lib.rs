@@ -1,8 +1,7 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
-use chrono::{DateTime, Datelike, Duration, Local, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use comemo::Prehashed;
 use ecow::EcoVec;
 use file_resolver::{
@@ -24,11 +23,9 @@ pub mod file_resolver;
 pub(crate) mod util;
 
 #[cfg(feature = "packages")]
-use std::sync::{Arc, Mutex};
-#[cfg(feature = "packages")]
 pub mod package_resolver;
 #[cfg(feature = "packages")]
-use package_resolver::{PackageResolver, PackageResolverCache};
+use package_resolver::PackageResolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
