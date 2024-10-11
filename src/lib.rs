@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(feature = "packages")]
 pub mod package_resolver;
 #[cfg(feature = "packages")]
-use package_resolver::PackageResolver;
+use package_resolver::{PackageResolver, PackageResolverCache};
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
@@ -207,10 +207,15 @@ impl TypstTemplateCollection {
     #[cfg(feature = "packages")]
     /// Adds `PackageResolver` to the file resolvers.
     /// When `package` is set in `FileId`, it will download the package from the typst package
-    /// repository. It caches the results into `cache`.
+    /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).
+    /// Example
+    /// ```rust
+    ///     let template = TypstTemplateCollection::new(vec![font])
+    ///         .with_package_file_resolver(Default::default(), None);
+    /// ```
     pub fn with_package_file_resolver(
         mut self,
-        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
+        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) -> Self {
         self.with_package_file_resolver_mut(cache, ureq);
@@ -218,12 +223,9 @@ impl TypstTemplateCollection {
     }
 
     #[cfg(feature = "packages")]
-    /// Adds `PackageResolver` to the file resolvers.
-    /// When `package` is set in `FileId`, it will download the package from the typst package
-    /// repository. It caches the results into `cache`.
     pub fn with_package_file_resolver_mut(
         &mut self,
-        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
+        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) {
         self.add_file_resolver_mut(PackageResolver::new(cache, ureq));
@@ -471,10 +473,15 @@ impl TypstTemplate {
     #[cfg(feature = "packages")]
     /// Adds `PackageResolver` to the file resolvers.
     /// When `package` is set in `FileId`, it will download the package from the typst package
-    /// repository. It caches the results into `cache`.
+    /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).
+    /// Example
+    /// ```rust
+    ///     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+    ///         .with_package_file_resolver(Default::default(), None);
+    /// ```
     pub fn with_package_file_resolver(
         mut self,
-        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
+        cache: PackageResolverCache,
         ureq: Option<ureq::Agent>,
     ) -> Self {
         self.collection.with_package_file_resolver_mut(cache, ureq);
