@@ -27,22 +27,23 @@ static PACKAGE_REPOSITORY_URL: &str = "https://packages.typst.org";
 static REQUEST_RETRY_COUNT: u32 = 3;
 
 #[derive(Debug, Clone)]
-pub struct PackageResolver {
+pub struct PackageResolver<C> {
     ureq: ureq::Agent,
-    cache: PackageResolverCache,
+    cache: C,
 }
 
-impl PackageResolver {
-    pub fn new(cache: PackageResolverCache, ureq: Option<ureq::Agent>) -> Self {
+impl<C> PackageResolver<C> {
+    pub fn new(cache: C, ureq: Option<ureq::Agent>) -> Self {
         let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
         Self { ureq, cache }
     }
 }
 
-impl PackageResolver {
+impl<C> PackageResolver<C> {
     fn resolve_bytes<T>(&self, id: FileId) -> FileResult<T>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>,
+        C: PackageResolverBaseCache,
     {
         let Self { ureq, cache } = self;
         let Some(package) = id.package() else {
@@ -56,7 +57,7 @@ impl PackageResolver {
 
         match cache.lookup_cached(package, id) {
             Ok(Some(cached)) => return Ok(cached),
-            _ => ()
+            _ => (),
         }
 
         let PackageSpec {
@@ -104,7 +105,10 @@ impl PackageResolver {
     }
 }
 
-impl FileResolver for PackageResolver {
+impl<C> FileResolver for PackageResolver<C>
+where
+    C: PackageResolverBaseCache,
+{
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
         self.resolve_bytes(id).map(|b| Cow::Owned(b))
     }
@@ -151,93 +155,99 @@ fn get_cache_file_path(path: Option<&Path>, package: &PackageSpec) -> FileResult
 
 #[derive(Clone, Debug)]
 pub enum PackageResolverCache {
-    /// File system cache with given path
-    /// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
     FileSystem(Option<PathBuf>),
-    /// In memory cache
     Memory(Arc<Mutex<HashMap<FileId, Vec<u8>>>>),
+}
+
+trait PackageResolverBaseCache {
+    fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
+    where
+        SourceOrBytesCreator: CreateBytesOrSource<T>;
+    fn cache_archive(&self, archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()>;
+}
+
+/// File system cache with given path
+/// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
+pub struct FileSystemBaseCache(Option<PathBuf>);
+
+impl PackageResolverBaseCache for FileSystemBaseCache {
+    fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
+    where
+        SourceOrBytesCreator: CreateBytesOrSource<T>,
+    {
+        let FileSystemBaseCache(path) = self;
+        let dir = get_cache_file_path(path.as_deref(), package)?;
+
+        let Some(path) = id.vpath().resolve(&dir) else {
+            return Ok(None);
+        };
+        let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
+        let cached = SourceOrBytesCreator.try_create(id, &content)?;
+        Ok(Some(cached))
+    }
+
+    fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
+        let FileSystemBaseCache(path) = self;
+        let dir = get_cache_file_path(path.as_deref(), package)?;
+        std::fs::create_dir_all(&dir).map_err(|error| FileError::from_io(error, &dir))?;
+        archive
+            .unpack(&dir)
+            .map_err(|error| FileError::from_io(error, &dir))?;
+        Ok(())
+    }
+}
+
+/// In memory cache
+pub struct MemoryBaseCache(Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
+
+impl PackageResolverBaseCache for MemoryBaseCache {
+    fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
+    where
+        SourceOrBytesCreator: CreateBytesOrSource<T>,
+    {
+        let MemoryBaseCache(cache) = self;
+        let mutex_guard = cache
+            .as_ref()
+            .lock()
+            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
+        let cached = if let Some(value) = mutex_guard.get(&id) {
+            let cached = SourceOrBytesCreator.try_create(id, value)?;
+            Some(cached)
+        } else {
+            None
+        };
+        Ok(cached)
+    }
+
+    fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
+        let MemoryBaseCache(cache) = self;
+        let entries = archive
+            .entries()
+            .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
+        let mut mutex_guard = cache
+            .as_ref()
+            .lock()
+            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
+        for entry in entries {
+            let Ok(mut file) = entry else {
+                continue;
+            };
+            let Ok(p) = file.path() else {
+                continue;
+            };
+            let file_id = FileId::new(Some(package.clone()), VirtualPath::new(p));
+            let mut buf = Vec::new();
+            let Ok(_) = file.read_to_end(&mut buf) else {
+                continue;
+            };
+            mutex_guard.insert(file_id, buf);
+        }
+        Ok(())
+    }
 }
 
 impl Default for PackageResolverCache {
     fn default() -> Self {
         PackageResolverCache::FileSystem(None)
-    }
-}
-
-impl PackageResolverCache {
-    pub fn file_system() -> Self {
-        PackageResolverCache::FileSystem(None)
-    }
-
-    pub fn file_system_with_path(path: PathBuf) -> Self {
-        PackageResolverCache::FileSystem(Some(path))
-    }
-
-    fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
-    where
-        SourceOrBytesCreator: CreateBytesOrSource<T>,
-    {
-        match self {
-            PackageResolverCache::Memory(cache) => {
-                let mutex_guard = cache
-                    .as_ref()
-                    .lock()
-                    .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
-                let cached = if let Some(value) = mutex_guard.get(&id) {
-                    let cached = SourceOrBytesCreator.try_create(id, value)?;
-                    Some(cached)
-                } else {
-                    None
-                };
-                Ok(cached)
-            }
-            PackageResolverCache::FileSystem(path) => {
-                let dir = get_cache_file_path(path.as_deref(), package)?;
-
-                let Some(path) = id.vpath().resolve(&dir) else {
-                    return Ok(None);
-                };
-                let content =
-                    std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
-                let cached = SourceOrBytesCreator.try_create(id, &content)?;
-                Ok(Some(cached))
-            }
-        }
-    }
-
-    fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
-        match self {
-            PackageResolverCache::Memory(cache) => {
-                let entries = archive.entries().map_err(|error| {
-                    PackageError::MalformedArchive(Some(eco_format!("{error}")))
-                })?;
-                let mut mutex_guard = cache
-                    .as_ref()
-                    .lock()
-                    .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
-                for entry in entries {
-                    let Ok(mut file) = entry else {
-                        continue;
-                    };
-                    let Ok(p) = file.path() else {
-                        continue;
-                    };
-                    let file_id = FileId::new(Some(package.clone()), VirtualPath::new(p));
-                    let mut buf = Vec::new();
-                    let Ok(_) = file.read_to_end(&mut buf) else {
-                        continue;
-                    };
-                    mutex_guard.insert(file_id, buf);
-                }
-            }
-            PackageResolverCache::FileSystem(path) => {
-                let dir = get_cache_file_path(path.as_deref(), package)?;
-                std::fs::create_dir_all(&dir).map_err(|error| FileError::from_io(error, &dir))?;
-                archive
-                    .unpack(&dir)
-                    .map_err(|error| FileError::from_io(error, &dir))?;
-            }
-        }
-        Ok(())
     }
 }
