@@ -210,20 +210,22 @@ impl TypstTemplateCollection {
     ///     let template = TypstTemplateCollection::new(vec![font])
     ///         .with_package_file_resolver(None);
     /// ```
-    pub fn with_package_file_resolver(
-        mut self,
-        ureq: Option<ureq::Agent>,
-    ) -> Self {
+    pub fn with_package_file_resolver(mut self, ureq: Option<ureq::Agent>) -> Self {
         self.with_package_file_resolver_mut(ureq);
         self
     }
 
     #[cfg(feature = "packages")]
-    pub fn with_package_file_resolver_mut(
-        &mut self,
-        ureq: Option<ureq::Agent>,
-    ) {
-        self.add_file_resolver_mut(PackageResolver::new(Default::default(), ureq));
+    pub fn with_package_file_resolver_mut(&mut self, ureq: Option<ureq::Agent>) {
+        use package_resolver::PackageResolverBuilder;
+        let mut builder = PackageResolverBuilder::new()
+            .with_file_system_base_cache()
+            .in_memory_binary_cache(Default::default())
+            .in_memory_source_cache(Default::default());
+        if let Some(ureq) = ureq {
+            builder = builder.ureq_agent(ureq);
+        }
+        self.add_file_resolver_mut(builder.build());
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -474,10 +476,7 @@ impl TypstTemplate {
     ///     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
     ///         .with_package_file_resolver(None);
     /// ```
-    pub fn with_package_file_resolver(
-        mut self,
-        ureq: Option<ureq::Agent>,
-    ) -> Self {
+    pub fn with_package_file_resolver(mut self, ureq: Option<ureq::Agent>) -> Self {
         self.collection.with_package_file_resolver_mut(ureq);
         self
     }

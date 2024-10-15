@@ -26,17 +26,119 @@ static PACKAGE_REPOSITORY_URL: &str = "https://packages.typst.org";
 
 static REQUEST_RETRY_COUNT: u32 = 3;
 
+#[derive(Debug, Clone, Default)]
+pub struct PackageResolverBuilder<C = ()> {
+    ureq: Option<ureq::Agent>,
+    in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
+    in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
+    base_cache: C,
+}
+
+impl PackageResolverBuilder<()> {
+    pub fn new() -> PackageResolverBuilder<()> {
+        PackageResolverBuilder::default()
+    }
+}
+
+impl<C> PackageResolverBuilder<C> {
+    pub fn ureq_agent(self, ureq: ureq::Agent) -> Self {
+        Self {
+            ureq: Some(ureq),
+            ..self
+        }
+    }
+
+    pub fn in_memory_source_cache(
+        self,
+        in_memory_source_cache: Arc<Mutex<HashMap<FileId, Source>>>,
+    ) -> Self {
+        Self {
+            in_memory_source_cache: Some(in_memory_source_cache),
+            ..self
+        }
+    }
+
+    pub fn in_memory_binary_cache(
+        self,
+        in_memory_binary_cache: Arc<Mutex<HashMap<FileId, Bytes>>>,
+    ) -> Self {
+        Self {
+            in_memory_binary_cache: Some(in_memory_binary_cache),
+            ..self
+        }
+    }
+
+    pub fn base_cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
+        let Self {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            base_cache: cache,
+        }
+    }
+
+    pub fn with_file_system_base_cache(self) -> PackageResolverBuilder<FileSystemBaseCache> {
+        let Self {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            base_cache: FileSystemBaseCache::new(),
+        }
+    }
+
+    pub fn with_in_memory_base_cache(
+        self,
+        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
+    ) -> PackageResolverBuilder<InMemoryBaseCache> {
+        let Self {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            base_cache: InMemoryBaseCache::new(cache),
+        }
+    }
+
+    pub fn build(self) -> PackageResolver<C> {
+        let Self {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            base_cache,
+        } = self;
+        let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
+        PackageResolver {
+            ureq,
+            in_memory_source_cache,
+            in_memory_binary_cache,
+            base_cache,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C> {
     ureq: ureq::Agent,
-    cache: C,
-}
-
-impl<C> PackageResolver<C> {
-    pub fn new(cache: C, ureq: Option<ureq::Agent>) -> Self {
-        let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
-        Self { ureq, cache }
-    }
+    in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
+    in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
+    base_cache: C,
 }
 
 impl<C> PackageResolver<C> {
@@ -45,7 +147,9 @@ impl<C> PackageResolver<C> {
         SourceOrBytesCreator: CreateBytesOrSource<T>,
         C: PackageResolverBaseCache,
     {
-        let Self { ureq, cache } = self;
+        let Self {
+            ureq, base_cache, ..
+        } = self;
         let Some(package) = id.package() else {
             return Err(not_found(id));
         };
@@ -55,7 +159,7 @@ impl<C> PackageResolver<C> {
             return Err(not_found(id));
         }
 
-        match cache.lookup_cached(package, id) {
+        match base_cache.lookup_cached(package, id) {
             Ok(Some(cached)) => return Ok(cached),
             _ => (),
         }
@@ -98,8 +202,8 @@ impl<C> PackageResolver<C> {
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
 
         let archive = Archive::new(&archive[..]);
-        cache.cache_archive(archive, package)?;
-        cache
+        base_cache.cache_archive(archive, package)?;
+        base_cache
             .lookup_cached(package, id)
             .and_then(|f| f.ok_or_else(|| not_found(id)))
     }
@@ -109,33 +213,49 @@ impl<C> FileResolver for PackageResolver<C>
 where
     C: PackageResolverBaseCache,
 {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
-        self.resolve_bytes(id).map(|b| Cow::Owned(b))
+    fn resolve_binary<'a>(&'a self, id: FileId) -> FileResult<Cow<'a, Bytes>> {
+        let Self {
+            in_memory_binary_cache,
+            ..
+        } = self;
+        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
+            if let Ok(cache) = in_memory_binary_cache.lock() {
+                if let Some(cached) = cache.get(&id) {
+                    return Ok(Cow::Owned(cached.clone()));
+                }
+            }
+        }
+        let cached: Bytes = self.resolve_bytes(id)?;
+        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
+            if let Ok(mut cache) = in_memory_binary_cache.lock() {
+                cache.insert(id, cached.clone());
+            }
+        }
+        Ok(Cow::Owned(cached))
     }
 
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
-        self.resolve_bytes(id).map(|s| Cow::Owned(s))
+        let Self {
+            in_memory_source_cache,
+            ..
+        } = self;
+        if let Some(in_memory_source_cache) = in_memory_source_cache {
+            if let Ok(cache) = in_memory_source_cache.lock() {
+                if let Some(cached) = cache.get(&id) {
+                    return Ok(Cow::Owned(cached.clone()));
+                }
+            }
+        }
+        let cached: Source = self.resolve_bytes(id)?;
+        if let Some(in_memory_source_cache) = in_memory_source_cache {
+            if let Ok(mut cache) = in_memory_source_cache.lock() {
+                cache.insert(id, cached.clone());
+            }
+        }
+        Ok(Cow::Owned(cached))
     }
 }
 
-struct SourceOrBytesCreator;
-
-trait CreateBytesOrSource<T> {
-    fn try_create(&self, id: FileId, value: &[u8]) -> FileResult<T>;
-}
-
-impl CreateBytesOrSource<Source> for SourceOrBytesCreator {
-    fn try_create(&self, id: FileId, value: &[u8]) -> FileResult<Source> {
-        let source = bytes_to_source(id, value)?;
-        Ok(source)
-    }
-}
-
-impl CreateBytesOrSource<Bytes> for SourceOrBytesCreator {
-    fn try_create(&self, _id: FileId, value: &[u8]) -> FileResult<Bytes> {
-        Ok(Bytes::from(value))
-    }
-}
 
 fn get_cache_file_path(path: Option<&Path>, package: &PackageSpec) -> FileResult<PathBuf> {
     let root = if let Some(path) = path {
@@ -170,6 +290,16 @@ trait PackageResolverBaseCache {
 /// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
 pub struct FileSystemBaseCache(Option<PathBuf>);
 
+impl FileSystemBaseCache {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub fn with_path(self, path: PathBuf) -> Self {
+        Self(Some(path))
+    }
+}
+
 impl PackageResolverBaseCache for FileSystemBaseCache {
     fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
     where
@@ -198,14 +328,20 @@ impl PackageResolverBaseCache for FileSystemBaseCache {
 }
 
 /// In memory cache
-pub struct MemoryBaseCache(Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
+pub struct InMemoryBaseCache(Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
 
-impl PackageResolverBaseCache for MemoryBaseCache {
-    fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
+impl InMemoryBaseCache {
+    pub fn new(cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>) -> Self {
+        Self(cache)
+    }
+}
+
+impl PackageResolverBaseCache for InMemoryBaseCache {
+    fn lookup_cached<T>(&self, _package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>,
     {
-        let MemoryBaseCache(cache) = self;
+        let InMemoryBaseCache(cache) = self;
         let mutex_guard = cache
             .as_ref()
             .lock()
@@ -220,7 +356,7 @@ impl PackageResolverBaseCache for MemoryBaseCache {
     }
 
     fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
-        let MemoryBaseCache(cache) = self;
+        let InMemoryBaseCache(cache) = self;
         let entries = archive
             .entries()
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
@@ -249,5 +385,24 @@ impl PackageResolverBaseCache for MemoryBaseCache {
 impl Default for PackageResolverCache {
     fn default() -> Self {
         PackageResolverCache::FileSystem(None)
+    }
+}
+
+struct SourceOrBytesCreator;
+
+trait CreateBytesOrSource<T> {
+    fn try_create(&self, id: FileId, value: &[u8]) -> FileResult<T>;
+}
+
+impl CreateBytesOrSource<Source> for SourceOrBytesCreator {
+    fn try_create(&self, id: FileId, value: &[u8]) -> FileResult<Source> {
+        let source = bytes_to_source(id, value)?;
+        Ok(source)
+    }
+}
+
+impl CreateBytesOrSource<Bytes> for SourceOrBytesCreator {
+    fn try_create(&self, _id: FileId, value: &[u8]) -> FileResult<Bytes> {
+        Ok(Bytes::from(value))
     }
 }
