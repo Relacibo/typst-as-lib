@@ -221,7 +221,7 @@ impl TypstTemplateCollection {
         &mut self,
         ureq: Option<ureq::Agent>,
     ) {
-        self.add_file_resolver_mut(PackageResolver::new(Default::default(), ureq));
+        self.add_file_resolver_mut(package_resolver::PackageResolver::new(Default::default(), ureq));
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
