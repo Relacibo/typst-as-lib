@@ -3,19 +3,19 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Datelike, Duration, Utc};
 use comemo::Prehashed;
-use ecow::EcoVec;
+use ecow::{eco_vec, EcoVec};
 use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
     StaticSourceFileResolver,
 };
 use thiserror::Error;
-use typst::diag::{FileError, FileResult, SourceDiagnostic};
-use typst::eval::Tracer;
+use typst::diag::{FileError, FileResult, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
 use typst::syntax::package::PackageSpec;
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
+use typst::utils::LazyHash;
 use typst::Library;
 use util::not_found;
 
@@ -24,13 +24,11 @@ pub(crate) mod util;
 
 #[cfg(feature = "packages")]
 pub mod package_resolver;
-#[cfg(feature = "packages")]
-use package_resolver::PackageResolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 
 pub struct TypstTemplateCollection {
-    book: Prehashed<FontBook>,
+    book: LazyHash<FontBook>,
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
     file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
@@ -55,7 +53,7 @@ impl TypstTemplateCollection {
     {
         let fonts = fonts.into();
         Self {
-            book: Prehashed::new(FontBook::from_fonts(&fonts)),
+            book: LazyHash::new(FontBook::from_fonts(&fonts)),
             fonts,
             inject_location: Default::default(),
             file_resolvers: Default::default(),
@@ -247,49 +245,54 @@ impl TypstTemplateCollection {
     /// ```
     pub fn compile_with_input<F, D>(
         &self,
-        tracer: &mut Tracer,
         main_source_id: F,
         inputs: D,
-    ) -> Result<Document, TypstAsLibError>
+    ) -> Warned<Result<Document, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        let library = self.initialize_library(inputs)?;
-        self.compile_with_library(tracer, library, main_source_id)
+        let library = match self.initialize_library(inputs) {
+            Ok(s) => s,
+            Err(err) => {
+                return Warned {
+                    output: Err(err.into()),
+                    warnings: eco_vec![],
+                }
+            }
+        };
+        self.compile_with_library(library, main_source_id)
     }
 
     /// Just call `typst::compile()`
-    pub fn compile<F>(
-        &self,
-        tracer: &mut Tracer,
-        main_source_id: F,
-    ) -> Result<Document, TypstAsLibError>
+    pub fn compile<F>(&self, main_source_id: F) -> Warned<Result<Document, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
     {
-        self.compile_with_library(tracer, Default::default(), main_source_id)
+        self.compile_with_library(Default::default(), main_source_id)
     }
 
     fn compile_with_library<F>(
         &self,
-        tracer: &mut Tracer,
         library: Library,
         main_source_id: F,
-    ) -> Result<Document, TypstAsLibError>
+    ) -> Warned<Result<Document, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
     {
         let FileIdNewType(main_source_id) = main_source_id.into();
-        let main_source = self.resolve_source(main_source_id)?;
         let world = TypstWorld {
-            library: Prehashed::new(library),
+            library: LazyHash::new(library),
             collection: self,
-            main_source: main_source.as_ref(),
+            main_source_id,
             now: Utc::now(),
         };
-        let doc = typst::compile(&world, tracer)?;
-        Ok(doc)
+        let Warned { output, warnings } = typst::compile(&world);
+
+        Warned {
+            output: output.map_err(Into::into),
+            warnings,
+        }
     }
 
     fn initialize_library<D>(&self, inputs: D) -> Result<Library, TypstAsLibError>
@@ -484,11 +487,7 @@ impl TypstTemplate {
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
-    pub fn compile_with_input<D>(
-        &self,
-        tracer: &mut Tracer,
-        inputs: D,
-    ) -> Result<Document, TypstAsLibError>
+    pub fn compile_with_input<D>(&self, inputs: D) -> Warned<Result<Document, TypstAsLibError>>
     where
         D: Into<Dict>,
     {
@@ -497,38 +496,38 @@ impl TypstTemplate {
             collection,
             ..
         } = self;
-        collection.compile_with_input(tracer, *source_id, inputs)
+        collection.compile_with_input(*source_id, inputs)
     }
 
     /// Just call `typst::compile()`
-    pub fn compile(&self, tracer: &mut Tracer) -> Result<Document, TypstAsLibError> {
+    pub fn compile(&self) -> Warned<Result<Document, TypstAsLibError>> {
         let Self {
             source_id,
             collection,
             ..
         } = self;
-        collection.compile(tracer, *source_id)
+        collection.compile(*source_id)
     }
 }
 
 struct TypstWorld<'a> {
-    library: Prehashed<Library>,
-    main_source: &'a Source,
+    library: LazyHash<Library>,
+    main_source_id: FileId,
     collection: &'a TypstTemplateCollection,
     now: DateTime<Utc>,
 }
 
 impl typst::World for TypstWorld<'_> {
-    fn library(&self) -> &Prehashed<Library> {
+    fn library(&self) -> &LazyHash<Library> {
         &self.library
     }
 
-    fn book(&self) -> &Prehashed<FontBook> {
+    fn book(&self) -> &LazyHash<FontBook> {
         &self.collection.book
     }
 
-    fn main(&self) -> Source {
-        self.main_source.clone()
+    fn main(&self) -> FileId {
+        self.main_source_id.clone()
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {

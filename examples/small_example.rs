@@ -1,5 +1,4 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
-use typst::eval::Tracer;
 use std::fs;
 use typst::foundations::{Bytes, Dict, IntoValue, Smart};
 use typst::text::Font;
@@ -18,17 +17,18 @@ fn main() {
     // with different input each time).
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
-    let mut tracer = Tracer::new();
-
     // Run it
     // Run `template.compile(&mut tracer)` to run typst script
     // without any input.
     let doc = template
-        .compile_with_input(&mut tracer, dummy_data())
+        .compile_with_input(dummy_data())
+        .output
         .expect("typst::compile() returned an error!");
 
+    let options = Default::default();
+
     // Create pdf
-    let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    let pdf = typst_pdf::pdf(&doc, &options).expect("Could not generate pdf.");
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
 
