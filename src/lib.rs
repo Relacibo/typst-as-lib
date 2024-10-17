@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Datelike, Duration, Utc};
-use comemo::Prehashed;
 use ecow::{eco_vec, EcoVec};
 use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,

@@ -15,7 +15,6 @@ packages = ["dep:binstall-tar", "dep:flate2", "dep:ureq"]
 [dependencies]
 binstall-tar = { version = "0.4.42", optional = true }
 chrono = "0.4.38"
-comemo = "0.4.0"
 dirs = "5.0.1"
 ecow = "0.2.2"
 flate2 = { version = "1.0.34", optional = true }
