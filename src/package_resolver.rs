@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    cell::RefCell,
     collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
@@ -46,96 +47,37 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
-    pub fn in_memory_source_cache(
-        self,
-        in_memory_source_cache: Arc<Mutex<HashMap<FileId, Source>>>,
-    ) -> Self {
-        Self {
-            in_memory_source_cache: Some(in_memory_source_cache),
-            ..self
-        }
+    pub fn set_cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
+        let Self { ureq, .. } = self;
+        PackageResolverBuilder { ureq, cache }
     }
 
-    pub fn in_memory_binary_cache(
-        self,
-        in_memory_binary_cache: Arc<Mutex<HashMap<FileId, Bytes>>>,
-    ) -> Self {
-        Self {
-            in_memory_binary_cache: Some(in_memory_binary_cache),
-            ..self
-        }
-    }
-
-    pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
-        let Self {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            ..
-        } = self;
+    pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemCache> {
+        let Self { ureq, .. } = self;
         PackageResolverBuilder {
             ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            cache,
+            cache: FileSystemCache::new(),
         }
     }
 
-    pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemBaseCache> {
-        let Self {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            ..
-        } = self;
+    pub fn with_in_memory_cache(self) -> PackageResolverBuilder<InMemoryCache> {
+        let Self { ureq, .. } = self;
         PackageResolverBuilder {
             ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            cache: FileSystemBaseCache::new(),
-        }
-    }
-
-    pub fn with_in_memory_cache(
-        self,
-        cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
-    ) -> PackageResolverBuilder<InMemoryBaseCache> {
-        let Self {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            ..
-        } = self;
-        PackageResolverBuilder {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            cache: InMemoryBaseCache::new(cache),
+            cache: InMemoryCache::new(),
         }
     }
 
     pub fn build(self) -> PackageResolver<C> {
-        let Self {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            cache,
-        } = self;
+        let Self { ureq, cache } = self;
         let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
-        PackageResolver {
-            ureq,
-            in_memory_source_cache,
-            in_memory_binary_cache,
-            cache,
-        }
+        PackageResolver { ureq, cache }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C> {
     ureq: ureq::Agent,
-    in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
-    in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
     cache: C,
 }
 
@@ -143,7 +85,7 @@ impl<C> PackageResolver<C> {
     fn resolve_bytes<T>(&self, id: FileId) -> FileResult<T>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>,
-        C: PackageResolverBaseCache,
+        C: PackageResolverCache,
     {
         let Self { ureq, cache, .. } = self;
         let Some(package) = id.package() else {
@@ -207,7 +149,7 @@ impl<C> PackageResolver<C> {
 
 impl<C> FileResolver for PackageResolver<C>
 where
-    C: PackageResolverBaseCache,
+    C: PackageResolverCache,
 {
     fn resolve_binary<'a>(&'a self, id: FileId) -> FileResult<Cow<'a, Bytes>> {
         let cached: Bytes = self.resolve_bytes(id)?;
@@ -215,36 +157,12 @@ where
     }
 
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
-        let Self {
-            in_memory_source_cache,
-            ..
-        } = self;
-        if let Some(in_memory_source_cache) = in_memory_source_cache {
-            if let Ok(cache) = in_memory_source_cache.lock() {
-                if let Some(cached) = cache.get(&id) {
-                    return Ok(Cow::Owned(cached.clone()));
-                }
-            }
-        }
         let cached: Source = self.resolve_bytes(id)?;
-        if let Some(in_memory_source_cache) = in_memory_source_cache {
-            if let Ok(mut cache) = in_memory_source_cache.lock() {
-                cache.insert(id, cached.clone());
-            }
-        }
         Ok(Cow::Owned(cached))
     }
 }
 
-fn get_cache_file_path(path: Option<&Path>, package: &PackageSpec) -> FileResult<PathBuf> {
-    let root = if let Some(path) = path {
-        Cow::Borrowed(path)
-    } else {
-        let Some(cache_dir) = dirs::cache_dir() else {
-            return Err(FileError::Other(Some(eco_format!("No cache dir set!"))));
-        };
-        Cow::Owned(cache_dir.join(DEFAULT_PACKAGES_SUBDIR))
-    };
+fn compose_cache_file_path(root: &Path, package: &PackageSpec) -> FileResult<PathBuf> {
     let subdir = Path::new(package.namespace.as_str())
         .join(package.name.as_str())
         .join(package.version.to_string());
@@ -252,13 +170,7 @@ fn get_cache_file_path(path: Option<&Path>, package: &PackageSpec) -> FileResult
     Ok(root.join(subdir))
 }
 
-#[derive(Clone, Debug)]
-pub enum PackageResolverCache {
-    FileSystem(Option<PathBuf>),
-    Memory(Arc<Mutex<HashMap<FileId, Vec<u8>>>>),
-}
-
-trait PackageResolverBaseCache {
+trait PackageResolverCache {
     fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>;
@@ -267,25 +179,34 @@ trait PackageResolverBaseCache {
 
 /// File system cache with given path
 /// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
-pub struct FileSystemBaseCache(Option<PathBuf>);
+pub struct FileSystemCache(PathBuf);
 
-impl FileSystemBaseCache {
+impl FileSystemCache {
     pub fn new() -> Self {
-        Self(None)
+        let cache_dir = dirs::cache_dir()
+            .map(|p| Cow::Owned(p))
+            .unwrap_or_else(|| Cow::Borrowed(Path::new(".")));
+        let path = cache_dir.join(DEFAULT_PACKAGES_SUBDIR);
+        Self(path)
     }
 
-    pub fn with_path(self, path: PathBuf) -> Self {
-        Self(Some(path))
+    pub fn path(&mut self, path: PathBuf) -> &mut Self {
+        self.0 = path;
+        self
+    }
+
+    pub fn get_path(&self) -> &PathBuf {
+        &self.0
     }
 }
 
-impl PackageResolverBaseCache for FileSystemBaseCache {
+impl PackageResolverCache for FileSystemCache {
     fn lookup_cached<T>(&self, package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>,
     {
-        let FileSystemBaseCache(path) = self;
-        let dir = get_cache_file_path(path.as_deref(), package)?;
+        let FileSystemCache(path) = self;
+        let dir = compose_cache_file_path(path, package)?;
 
         let Some(path) = id.vpath().resolve(&dir) else {
             return Ok(None);
@@ -296,8 +217,8 @@ impl PackageResolverBaseCache for FileSystemBaseCache {
     }
 
     fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
-        let FileSystemBaseCache(path) = self;
-        let dir = get_cache_file_path(path.as_deref(), package)?;
+        let FileSystemCache(path) = self;
+        let dir = compose_cache_file_path(path, package)?;
         std::fs::create_dir_all(&dir).map_err(|error| FileError::from_io(error, &dir))?;
         archive
             .unpack(&dir)
@@ -307,25 +228,21 @@ impl PackageResolverBaseCache for FileSystemBaseCache {
 }
 
 /// In memory cache
-pub struct InMemoryBaseCache(Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
+pub struct InMemoryCache(RefCell<HashMap<FileId, Vec<u8>>>);
 
-impl InMemoryBaseCache {
-    pub fn new(cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>) -> Self {
-        Self(cache)
+impl InMemoryCache {
+    pub fn new() -> Self {
+        Self(Default::default())
     }
 }
 
-impl PackageResolverBaseCache for InMemoryBaseCache {
+impl PackageResolverCache for InMemoryCache {
     fn lookup_cached<T>(&self, _package: &PackageSpec, id: FileId) -> FileResult<Option<T>>
     where
         SourceOrBytesCreator: CreateBytesOrSource<T>,
     {
-        let InMemoryBaseCache(cache) = self;
-        let mutex_guard = cache
-            .as_ref()
-            .lock()
-            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
-        let cached = if let Some(value) = mutex_guard.get(&id) {
+        let InMemoryCache(cache) = self;
+        let cached = if let Some(value) = cache.borrow_mut().get(&id) {
             let cached = SourceOrBytesCreator.try_create(id, value)?;
             Some(cached)
         } else {
@@ -335,14 +252,10 @@ impl PackageResolverBaseCache for InMemoryBaseCache {
     }
 
     fn cache_archive(&self, mut archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()> {
-        let InMemoryBaseCache(cache) = self;
+        let InMemoryCache(cache) = self;
         let entries = archive
             .entries()
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
-        let mut mutex_guard = cache
-            .as_ref()
-            .lock()
-            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
         for entry in entries {
             let Ok(mut file) = entry else {
                 continue;
@@ -355,15 +268,9 @@ impl PackageResolverBaseCache for InMemoryBaseCache {
             let Ok(_) = file.read_to_end(&mut buf) else {
                 continue;
             };
-            mutex_guard.insert(file_id, buf);
+            cache.borrow_mut().insert(file_id, buf);
         }
         Ok(())
-    }
-}
-
-impl Default for PackageResolverCache {
-    fn default() -> Self {
-        PackageResolverCache::FileSystem(None)
     }
 }
 

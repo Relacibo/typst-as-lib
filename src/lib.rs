@@ -8,6 +8,7 @@ use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
     StaticSourceFileResolver,
 };
+use in_memory_cache::CachedFileResolver;
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic};
 use typst::eval::Tracer;
@@ -199,7 +200,11 @@ impl TypstTemplateCollection {
     where
         P: Into<PathBuf>,
     {
-        self.add_file_resolver_mut(FileSystemResolver::new(root.into()));
+        let resolver = FileSystemResolver::new(root.into());
+        let resolver = CachedFileResolver::new(resolver)
+            .with_in_memory_binary_cache()
+            .with_in_memory_source_cache();
+        self.add_file_resolver_mut(resolver);
     }
 
     #[cfg(feature = "packages")]
@@ -218,15 +223,17 @@ impl TypstTemplateCollection {
 
     #[cfg(feature = "packages")]
     pub fn with_package_file_resolver_mut(&mut self, ureq: Option<ureq::Agent>) {
+        use in_memory_cache::CachedFileResolver;
         use package_resolver::PackageResolverBuilder;
-        let mut builder = PackageResolverBuilder::new()
-            .with_file_system_cache()
-            .in_memory_binary_cache(Default::default())
-            .in_memory_source_cache(Default::default());
+        let mut builder = PackageResolverBuilder::new().with_file_system_cache();
         if let Some(ureq) = ureq {
             builder = builder.ureq_agent(ureq);
         }
-        self.add_file_resolver_mut(builder.build());
+        let resolver = builder.build();
+        let resolver = CachedFileResolver::new(resolver)
+            .with_in_memory_binary_cache()
+            .with_in_memory_source_cache();
+        self.add_file_resolver_mut(resolver);
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
