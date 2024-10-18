@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.10.0] - 2024-10-20
+## [0.10.0] - 2024-10-19
 
 - Updated Typst dependency to version 0.12.0
 - compile functions: 
