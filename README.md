@@ -15,24 +15,24 @@ static OUTPUT: &str = "./examples/output.pdf";
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
-    let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    let font = Font::new(Bytes::from(FONT), 0)
+        .expect("Could not parse font!");
 
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
-    let mut tracer = Tracer::new();
-
     // Run it
-    // Run `template.compile(&mut tracer)` to run typst script
-    // without any input.
     let doc = template
-        .compile_with_input(&mut tracer, dummy_data())
+        .compile_with_input(dummy_data())
+        .output
         .expect("typst::compile() returned an error!");
 
     // Create pdf
-    let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    let options = Default::default();
+    let pdf = typst_pdf::pdf(&doc, &options)
+        .expect("Could not generate pdf.");
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
 ```

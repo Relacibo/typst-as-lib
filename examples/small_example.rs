@@ -18,16 +18,13 @@ fn main() {
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
 
     // Run it
-    // Run `template.compile(&mut tracer)` to run typst script
-    // without any input.
     let doc = template
         .compile_with_input(dummy_data())
         .output
         .expect("typst::compile() returned an error!");
 
-    let options = Default::default();
-
     // Create pdf
+    let options = Default::default();
     let pdf = typst_pdf::pdf(&doc, &options).expect("Could not generate pdf.");
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }

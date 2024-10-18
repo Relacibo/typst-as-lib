@@ -14,9 +14,9 @@ use typst::{
 use crate::file_resolver::FileResolver;
 
 pub struct CachedFileResolver<T> {
-    file_resolver: T,
-    in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
-    in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
+    pub file_resolver: T,
+    pub in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
+    pub in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
 }
 
 impl<T> CachedFileResolver<T> {
@@ -28,14 +28,6 @@ impl<T> CachedFileResolver<T> {
         }
     }
 
-    pub fn set_in_memory_source_cache(
-        &mut self,
-        in_memory_source_cache: Arc<Mutex<HashMap<FileId, Source>>>,
-    ) -> &mut Self {
-        self.in_memory_source_cache = Some(in_memory_source_cache);
-        self
-    }
-
     pub fn with_in_memory_source_cache(self) -> Self {
         Self {
             in_memory_source_cache: Some(Default::default()),
@@ -43,27 +35,11 @@ impl<T> CachedFileResolver<T> {
         }
     }
 
-    pub fn in_memory_source_cache(&self) -> &Option<Arc<Mutex<HashMap<FileId, Source>>>> {
-        &self.in_memory_source_cache
-    }
-
-    pub fn set_in_memory_binary_cache(
-        &mut self,
-        in_memory_binary_cache: Arc<Mutex<HashMap<FileId, Bytes>>>,
-    ) -> &mut Self {
-        self.in_memory_binary_cache = Some(in_memory_binary_cache);
-        self
-    }
-
     pub fn with_in_memory_binary_cache(self) -> Self {
         Self {
             in_memory_binary_cache: Some(Default::default()),
             ..self
         }
-    }
-
-    pub fn in_memory_binary_cache(&self) -> &Option<Arc<Mutex<HashMap<FileId, Bytes>>>> {
-        &self.in_memory_binary_cache
     }
 }
 

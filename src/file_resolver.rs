@@ -11,6 +11,7 @@ use typst::{
 };
 
 use crate::{
+    cached_file_resolver::CachedFileResolver,
     util::{bytes_to_source, not_found},
     FileIdNewType, SourceNewType,
 };
@@ -145,9 +146,7 @@ impl FileSystemResolver {
             ..self
         }
     }
-}
 
-impl FileSystemResolver {
     fn resolve_bytes(&self, id: FileId) -> FileResult<Vec<u8>> {
         let Self {
             root,
@@ -176,6 +175,12 @@ impl FileSystemResolver {
             .ok_or_else(|| FileError::NotFound(dir.to_path_buf()))?;
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
         Ok(content.into())
+    }
+
+    pub fn cached(self) -> CachedFileResolver<Self> {
+        CachedFileResolver::new(self)
+            .with_in_memory_source_cache()
+            .with_in_memory_binary_cache()
     }
 }
 

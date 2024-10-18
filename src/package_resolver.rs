@@ -18,6 +18,7 @@ use typst::{
 
 use crate::{
     file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR},
+    cached_file_resolver::CachedFileResolver,
     util::{bytes_to_source, not_found},
 };
 
@@ -179,7 +180,7 @@ trait PackageResolverCache {
 
 /// File system cache with given path
 /// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
-pub struct FileSystemCache(PathBuf);
+pub struct FileSystemCache(pub PathBuf);
 
 impl FileSystemCache {
     pub fn new() -> Self {
@@ -188,15 +189,6 @@ impl FileSystemCache {
             .unwrap_or_else(|| Cow::Borrowed(Path::new(".")));
         let path = cache_dir.join(DEFAULT_PACKAGES_SUBDIR);
         Self(path)
-    }
-
-    pub fn path(&mut self, path: PathBuf) -> &mut Self {
-        self.0 = path;
-        self
-    }
-
-    pub fn get_path(&self) -> &PathBuf {
-        &self.0
     }
 }
 
@@ -228,7 +220,7 @@ impl PackageResolverCache for FileSystemCache {
 }
 
 /// In memory cache
-pub struct InMemoryCache(RefCell<HashMap<FileId, Vec<u8>>>);
+pub struct InMemoryCache(pub Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
 
 impl InMemoryCache {
     pub fn new() -> Self {
@@ -242,12 +234,17 @@ impl PackageResolverCache for InMemoryCache {
         SourceOrBytesCreator: CreateBytesOrSource<T>,
     {
         let InMemoryCache(cache) = self;
-        let cached = if let Some(value) = cache.borrow_mut().get(&id) {
+        let mutex_guard = cache
+            .as_ref()
+            .lock()
+            .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
+        let cached = if let Some(value) = mutex_guard.get(&id) {
             let cached = SourceOrBytesCreator.try_create(id, value)?;
             Some(cached)
         } else {
             None
         };
+
         Ok(cached)
     }
 
@@ -268,7 +265,10 @@ impl PackageResolverCache for InMemoryCache {
             let Ok(_) = file.read_to_end(&mut buf) else {
                 continue;
             };
-            cache.borrow_mut().insert(file_id, buf);
+            let mut mutex_guard = cache
+                .lock()
+                .map_err(|_| FileError::Other(Some(eco_format!("Could not lock cache"))))?;
+            mutex_guard.insert(file_id, buf);
         }
         Ok(())
     }
@@ -290,5 +290,19 @@ impl CreateBytesOrSource<Source> for SourceOrBytesCreator {
 impl CreateBytesOrSource<Bytes> for SourceOrBytesCreator {
     fn try_create(&self, _id: FileId, value: &[u8]) -> FileResult<Bytes> {
         Ok(Bytes::from(value))
+    }
+}
+
+impl PackageResolver<InMemoryCache> {
+    pub fn cached(self) -> CachedFileResolver<Self> {
+        CachedFileResolver::new(self).with_in_memory_source_cache()
+    }
+}
+
+impl PackageResolver<FileSystemCache> {
+    pub fn cached(self) -> CachedFileResolver<Self> {
+        CachedFileResolver::new(self)
+            .with_in_memory_source_cache()
+            .with_in_memory_binary_cache()
     }
 }

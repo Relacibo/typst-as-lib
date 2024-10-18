@@ -7,7 +7,7 @@
     - `tracer` argument removed
     - Return Type of is now wrapped in `Warned` type
 - Added optional in-memory-caching of sources and binary files for 
-  `FileSystemResolver` and `PackageResolver`
+  `FileSystemResolver` and `PackageResolver`, that is enabled by default.
 - `PackageResolver` has now the cache as generic type argument.
 - `PackageResolver` has to be build with the `PackageResolverBuilder`
 
