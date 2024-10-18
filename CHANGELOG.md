@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0] - 2024-10-20
+
+- Updated Typst dependency to version 0.12.0
+- compile functions: 
+    - `tracer` argument removed
+    - Return Type of is now wrapped in `Warned` type
+- Added optional in-memory-caching of sources and binary files for 
+  `FileSystemResolver` and `PackageResolver`
+- `PackageResolver` has now the cache as generic type argument.
+- `PackageResolver` has to be build with the `PackageResolverBuilder`
+
 ## [0.9.0] - 2024-10-12
 
 - Fix: Today function - Use Utc::now instead of Local::now

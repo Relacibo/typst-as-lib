@@ -28,15 +28,17 @@ fn main() {
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .with_file_system_resolver(ROOT)
         .with_package_file_resolver(None);
-    let mut tracer = Default::default();
 
     // Run it
     let doc = template
-        .compile(&mut tracer)
+        .compile()
+        .output
         .expect("typst::compile() returned an error!");
 
+    let options = Default::default();
+
     // Create pdf
-    let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    let pdf = typst_pdf::pdf(&doc, &options).expect("Could not generate pdf.");
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
 

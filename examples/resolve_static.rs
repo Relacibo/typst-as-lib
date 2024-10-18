@@ -22,14 +22,17 @@ fn main() {
     let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
         .with_static_source_file_resolver([("function.typ", OTHER_TEMPLATE_FILE)])
         .with_static_file_resolver([("./images/typst.png", IMAGE)]);
-    let mut tracer = Default::default();
 
     // Run it
     let doc = template
-        .compile(&mut tracer)
+        .compile()
+        .output
         .expect("typst::compile() returned an error!");
 
+    let options = Default::default();
+
     // Create pdf
-    let pdf = typst_pdf::pdf(&doc, Smart::Auto, None);
+    let pdf = typst_pdf::pdf(&doc, &options).expect("Could not generate pdf.");
+
     fs::write(OUTPUT, pdf).expect("Could not write pdf.");
 }
