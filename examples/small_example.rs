@@ -1,6 +1,6 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
-use typst::foundations::{Bytes, Dict, IntoValue, Smart};
+use typst::foundations::{Bytes, Dict, IntoValue};
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 

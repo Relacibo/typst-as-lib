@@ -7,7 +7,6 @@ use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
     StaticSourceFileResolver,
 };
-use cached_file_resolver::CachedFileResolver;
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
@@ -19,8 +18,8 @@ use typst::utils::LazyHash;
 use typst::Library;
 use util::not_found;
 
-pub mod file_resolver;
 pub mod cached_file_resolver;
+pub mod file_resolver;
 pub(crate) mod util;
 
 #[cfg(feature = "packages")]

@@ -1,7 +1,7 @@
 #[cfg(feature = "packages")]
 use std::fs;
 #[cfg(feature = "packages")]
-use typst::foundations::{Bytes, Smart};
+use typst::foundations::Bytes;
 #[cfg(feature = "packages")]
 use typst::text::Font;
 #[cfg(feature = "packages")]

@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    cell::RefCell,
     collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
