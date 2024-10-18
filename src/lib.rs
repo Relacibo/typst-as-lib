@@ -20,6 +20,7 @@ use typst::Library;
 use util::not_found;
 
 pub mod file_resolver;
+pub mod in_memory_cache;
 pub(crate) mod util;
 
 #[cfg(feature = "packages")]
@@ -219,7 +220,7 @@ impl TypstTemplateCollection {
     pub fn with_package_file_resolver_mut(&mut self, ureq: Option<ureq::Agent>) {
         use package_resolver::PackageResolverBuilder;
         let mut builder = PackageResolverBuilder::new()
-            .with_file_system_base_cache()
+            .with_file_system_cache()
             .in_memory_binary_cache(Default::default())
             .in_memory_source_cache(Default::default());
         if let Some(ureq) = ureq {

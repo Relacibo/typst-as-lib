@@ -29,9 +29,7 @@ static REQUEST_RETRY_COUNT: u32 = 3;
 #[derive(Debug, Clone, Default)]
 pub struct PackageResolverBuilder<C = ()> {
     ureq: Option<ureq::Agent>,
-    in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
-    in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
-    base_cache: C,
+    cache: C,
 }
 
 impl PackageResolverBuilder<()> {
@@ -68,7 +66,7 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
-    pub fn base_cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
+    pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
         let Self {
             ureq,
             in_memory_source_cache,
@@ -79,11 +77,11 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             in_memory_source_cache,
             in_memory_binary_cache,
-            base_cache: cache,
+            cache,
         }
     }
 
-    pub fn with_file_system_base_cache(self) -> PackageResolverBuilder<FileSystemBaseCache> {
+    pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemBaseCache> {
         let Self {
             ureq,
             in_memory_source_cache,
@@ -94,11 +92,11 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             in_memory_source_cache,
             in_memory_binary_cache,
-            base_cache: FileSystemBaseCache::new(),
+            cache: FileSystemBaseCache::new(),
         }
     }
 
-    pub fn with_in_memory_base_cache(
+    pub fn with_in_memory_cache(
         self,
         cache: Arc<Mutex<HashMap<FileId, Vec<u8>>>>,
     ) -> PackageResolverBuilder<InMemoryBaseCache> {
@@ -112,7 +110,7 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             in_memory_source_cache,
             in_memory_binary_cache,
-            base_cache: InMemoryBaseCache::new(cache),
+            cache: InMemoryBaseCache::new(cache),
         }
     }
 
@@ -121,14 +119,14 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             in_memory_source_cache,
             in_memory_binary_cache,
-            base_cache,
+            cache,
         } = self;
         let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
         PackageResolver {
             ureq,
             in_memory_source_cache,
             in_memory_binary_cache,
-            base_cache,
+            cache,
         }
     }
 }
@@ -138,7 +136,7 @@ pub struct PackageResolver<C> {
     ureq: ureq::Agent,
     in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
     in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
-    base_cache: C,
+    cache: C,
 }
 
 impl<C> PackageResolver<C> {
@@ -147,9 +145,7 @@ impl<C> PackageResolver<C> {
         SourceOrBytesCreator: CreateBytesOrSource<T>,
         C: PackageResolverBaseCache,
     {
-        let Self {
-            ureq, base_cache, ..
-        } = self;
+        let Self { ureq, cache, .. } = self;
         let Some(package) = id.package() else {
             return Err(not_found(id));
         };
@@ -159,7 +155,7 @@ impl<C> PackageResolver<C> {
             return Err(not_found(id));
         }
 
-        match base_cache.lookup_cached(package, id) {
+        match cache.lookup_cached(package, id) {
             Ok(Some(cached)) => return Ok(cached),
             _ => (),
         }
@@ -202,8 +198,8 @@ impl<C> PackageResolver<C> {
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
 
         let archive = Archive::new(&archive[..]);
-        base_cache.cache_archive(archive, package)?;
-        base_cache
+        cache.cache_archive(archive, package)?;
+        cache
             .lookup_cached(package, id)
             .and_then(|f| f.ok_or_else(|| not_found(id)))
     }
@@ -214,23 +210,7 @@ where
     C: PackageResolverBaseCache,
 {
     fn resolve_binary<'a>(&'a self, id: FileId) -> FileResult<Cow<'a, Bytes>> {
-        let Self {
-            in_memory_binary_cache,
-            ..
-        } = self;
-        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
-            if let Ok(cache) = in_memory_binary_cache.lock() {
-                if let Some(cached) = cache.get(&id) {
-                    return Ok(Cow::Owned(cached.clone()));
-                }
-            }
-        }
         let cached: Bytes = self.resolve_bytes(id)?;
-        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
-            if let Ok(mut cache) = in_memory_binary_cache.lock() {
-                cache.insert(id, cached.clone());
-            }
-        }
         Ok(Cow::Owned(cached))
     }
 
@@ -255,7 +235,6 @@ where
         Ok(Cow::Owned(cached))
     }
 }
-
 
 fn get_cache_file_path(path: Option<&Path>, package: &PackageSpec) -> FileResult<PathBuf> {
     let root = if let Some(path) = path {
