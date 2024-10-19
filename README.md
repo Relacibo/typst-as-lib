@@ -93,6 +93,7 @@ let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
     .add_file_resolver(
         FileSystemResolver::new("./examples/templates")
             .with_local_package_root("local/packages")
+            .cached()
     );
 ```
 
@@ -110,19 +111,23 @@ This uses the file system as a cache.
 If you want to use another cache root path, use:
 ```rust
 let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-    .add_file_resolver(PackageResolver::new(
-        PackageResolverCache::FileSystem(Some("cache/root")), 
-        None
-    ));
+    .add_file_resolver(PackageResolverBuilder::new()
+        .set_cache(
+            FileSystemCache(PathBuf::from("cache/root"))
+        )
+        .build().cached()
+    );
 ```
 
 If you want to instead use the memory as cache, use:
 ```rust
 let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
-    .add_file_resolver(PackageResolver::new(
-        PackageResolverCache::Memory(Default::default()), 
-        None
-    ));
+    .add_file_resolver(PackageResolverBuilder::new()
+        .set_cache(
+            InMemoryCache::new()
+        )
+        .build().cached()
+    );
 ```
 
 ### Examples
