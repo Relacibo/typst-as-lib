@@ -90,3 +90,9 @@ where
         Ok(resolved)
     }
 }
+
+pub trait IntoCachedFileResolver {
+    fn into_cached(self) -> CachedFileResolver<Self>
+    where
+        Self: Sized;
+}

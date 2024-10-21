@@ -11,7 +11,7 @@ use typst::{
 };
 
 use crate::{
-    cached_file_resolver::CachedFileResolver,
+    cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver},
     util::{bytes_to_source, not_found},
     FileIdNewType, SourceNewType,
 };
@@ -176,8 +176,10 @@ impl FileSystemResolver {
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
         Ok(content.into())
     }
+}
 
-    pub fn cached(self) -> CachedFileResolver<Self> {
+impl IntoCachedFileResolver for FileSystemResolver {
+    fn into_cached(self) -> CachedFileResolver<Self> {
         CachedFileResolver::new(self)
             .with_in_memory_source_cache()
             .with_in_memory_binary_cache()

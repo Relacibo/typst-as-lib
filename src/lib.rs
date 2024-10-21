@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 
+use cached_file_resolver::IntoCachedFileResolver;
 use chrono::{DateTime, Datelike, Duration, Utc};
 use ecow::{eco_vec, EcoVec};
 use file_resolver::{
@@ -11,8 +12,7 @@ use thiserror::Error;
 use typst::diag::{FileError, FileResult, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
 use typst::model::Document;
-use typst::syntax::package::PackageSpec;
-use typst::syntax::{FileId, Source, VirtualPath};
+use typst::syntax::{package::PackageSpec, FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::Library;
@@ -196,7 +196,7 @@ impl TypstTemplateCollection {
     where
         P: Into<PathBuf>,
     {
-        self.add_file_resolver_mut(FileSystemResolver::new(root.into()).cached());
+        self.add_file_resolver_mut(FileSystemResolver::new(root.into()).into_cached());
     }
 
     #[cfg(feature = "packages")]
@@ -220,7 +220,7 @@ impl TypstTemplateCollection {
         if let Some(ureq) = ureq {
             builder = builder.ureq_agent(ureq);
         }
-        self.add_file_resolver_mut(builder.build().cached());
+        self.add_file_resolver_mut(builder.build().into_cached());
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible

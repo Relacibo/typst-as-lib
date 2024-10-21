@@ -16,9 +16,7 @@ use typst::{
 };
 
 use crate::{
-    file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR},
-    cached_file_resolver::CachedFileResolver,
-    util::{bytes_to_source, not_found},
+    cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver}, file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR}, util::{bytes_to_source, not_found}
 };
 
 // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L15
@@ -292,14 +290,14 @@ impl CreateBytesOrSource<Bytes> for SourceOrBytesCreator {
     }
 }
 
-impl PackageResolver<InMemoryCache> {
-    pub fn cached(self) -> CachedFileResolver<Self> {
+impl IntoCachedFileResolver for PackageResolver<InMemoryCache> {
+    fn into_cached(self) -> CachedFileResolver<Self> {
         CachedFileResolver::new(self).with_in_memory_source_cache()
     }
 }
 
-impl PackageResolver<FileSystemCache> {
-    pub fn cached(self) -> CachedFileResolver<Self> {
+impl IntoCachedFileResolver for PackageResolver<FileSystemCache> {
+    fn into_cached(self) -> CachedFileResolver<Self> {
         CachedFileResolver::new(self)
             .with_in_memory_source_cache()
             .with_in_memory_binary_cache()
