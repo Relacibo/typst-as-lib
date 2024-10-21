@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.0] - *
+- `IntoCachedFileResolver` - wraps the file resolver in an in-memory cache
+
 ## [0.10.0] - 2024-10-19
 
 - Updated Typst dependency to version 0.12.0
