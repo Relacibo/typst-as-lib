@@ -1,9 +1,9 @@
-#import sys: inputs
+#import typst_as_lib: input
 
 #set page(paper: "a4")
 #set text(font: "TeX Gyre Cursor", 11pt)
 
-#let content = inputs.v
+#let content = input.v
 #let last_index = content.len() - 1
 
 #for (i, elem) in content.enumerate() [

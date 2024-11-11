@@ -2,6 +2,17 @@
 
 ## [0.11.0] - *
 - `IntoCachedFileResolver` - wraps the file resolver in an in-memory cache
+- rust injects typst input at `typst_as_lib: input` instead of `sys: inputs` by default. (Can be changed with `TypstTemplate[Collection]::custom_inject_location`)
+
+Replace in .typ files:
+```typ
+#import sys: inputs
+```
+with
+```typ
+#import typst_as_lib: input
+```
+
 
 ## [0.10.0] - 2024-10-19
 

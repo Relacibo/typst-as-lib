@@ -32,6 +32,7 @@ pub struct TypstTemplateCollection {
     fonts: Vec<Font>,
     inject_location: Option<InjectLocation>,
     file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
+    library: LazyHash<Library>,
 }
 
 impl TypstTemplateCollection {
@@ -57,14 +58,13 @@ impl TypstTemplateCollection {
             fonts,
             inject_location: Default::default(),
             file_resolvers: Default::default(),
+            library: Default::default(),
         }
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
-    /// and `inputs` is the `value_name`).
-    /// Also preinitializes the library for better performance,
-    /// if the template will be reused.
+    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
+    /// and `input` is the `value_name`).
     pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
@@ -74,16 +74,13 @@ impl TypstTemplateCollection {
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
-    /// and `inputs` is the `value_name`).
-    /// Also preinitializes the library for better performance,
-    /// if the template will be reused.
+    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
+    /// and `input` is the `value_name`).
     pub fn custom_inject_location_mut<S>(&mut self, module_name: S, value_name: S)
     where
         S: Into<String>,
     {
         self.inject_location = Some(InjectLocation {
-            preinitialized_library: Default::default(),
             module_name: module_name.into(),
             value_name: value_name.into(),
         });
@@ -224,7 +221,7 @@ impl TypstTemplateCollection {
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import sys: inputs`.
+    /// in a typst script with `#import typst_as_lib: input`.
     ///
     /// Example:
     ///
@@ -251,16 +248,7 @@ impl TypstTemplateCollection {
         F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        let library = match self.initialize_library(inputs) {
-            Ok(s) => s,
-            Err(err) => {
-                return Warned {
-                    output: Err(err.into()),
-                    warnings: eco_vec![],
-                }
-            }
-        };
-        self.compile_with_library(library, main_source_id)
+        self.compile_helper(main_source_id, Some(inputs))
     }
 
     /// Just call `typst::compile()`
@@ -268,22 +256,36 @@ impl TypstTemplateCollection {
     where
         F: Into<FileIdNewType>,
     {
-        self.compile_with_library(Default::default(), main_source_id)
+        self.compile_helper::<_, Dict>(main_source_id, None)
     }
 
-    fn compile_with_library<F>(
+    fn compile_helper<F, D>(
         &self,
-        library: Library,
         main_source_id: F,
+        inputs: Option<D>,
     ) -> Warned<Result<Document, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
+        D: Into<Dict>,
     {
         let FileIdNewType(main_source_id) = main_source_id.into();
         let world = TypstWorld {
-            library: LazyHash::new(library),
             collection: self,
             main_source_id,
+            library: if let Some(inputs) = inputs {
+                let lib = self.inject_input(inputs);
+                match lib {
+                    Ok(lib) => Cow::Owned(lib),
+                    Err(err) => {
+                        return Warned {
+                            output: Err(err),
+                            warnings: Default::default(),
+                        };
+                    }
+                }
+            } else {
+                Cow::Borrowed(&self.library)
+            },
             now: Utc::now(),
         };
         let Warned { output, warnings } = typst::compile(&world);
@@ -294,33 +296,33 @@ impl TypstTemplateCollection {
         }
     }
 
-    fn initialize_library<D>(&self, inputs: D) -> Result<Library, TypstAsLibError>
+    fn inject_input<D>(&self, inputs: D) -> Result<LazyHash<Library>, TypstAsLibError>
     where
         D: Into<Dict>,
     {
-        let inputs = inputs.into();
-        let TypstTemplateCollection {
-            inject_location, ..
+        let Self {
+            inject_location,
+            library,
+            ..
         } = self;
-        let lib = if let Some(InjectLocation {
-            preinitialized_library,
+        let (module_name, value_name) = if let Some(InjectLocation {
             module_name,
             value_name,
         }) = inject_location
         {
-            let mut lib = preinitialized_library.clone();
-            let global = lib.global.scope_mut();
-            if global.get(module_name).is_some() {
-                return Err(TypstAsLibError::InjectLocationIsNotEmpty);
-            }
-            let mut scope = Scope::new();
-            scope.define(value_name, inputs);
-            let module = Module::new(module_name, scope);
-            global.define_module(module);
-            lib
+            (module_name.as_str(), value_name.as_str())
         } else {
-            Library::builder().with_inputs(inputs).build()
+            ("typst_as_lib", "input")
         };
+        let mut lib = library.clone();
+        let global = lib.global.scope_mut();
+        if global.get(module_name).is_some() {
+            return Err(TypstAsLibError::InjectLocationIsNotEmpty);
+        }
+        let mut scope = Scope::new();
+        scope.define(value_name, inputs.into());
+        let module = Module::new(module_name, scope);
+        global.define_module(module);
         Ok(lib)
     }
 
@@ -392,10 +394,8 @@ impl TypstTemplate {
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
-    /// and `inputs` is the `value_name`).
-    /// Also preinitializes the library for better performance,
-    /// if the template will be reused.
+    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
+    /// and `input` is the `value_name`).
     pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
@@ -507,15 +507,15 @@ impl TypstTemplate {
 }
 
 struct TypstWorld<'a> {
-    library: LazyHash<Library>,
     main_source_id: FileId,
     collection: &'a TypstTemplateCollection,
+    library: Cow<'a, LazyHash<Library>>,
     now: DateTime<Utc>,
 }
 
 impl typst::World for TypstWorld<'_> {
     fn library(&self) -> &LazyHash<Library> {
-        &self.library
+        self.library.as_ref()
     }
 
     fn book(&self) -> &LazyHash<FontBook> {
@@ -553,7 +553,6 @@ impl typst::World for TypstWorld<'_> {
 
 #[derive(Debug, Clone)]
 struct InjectLocation {
-    preinitialized_library: Library,
     module_name: String,
     value_name: String,
 }
