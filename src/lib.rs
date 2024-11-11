@@ -9,8 +9,8 @@ use file_resolver::{
     StaticSourceFileResolver,
 };
 use thiserror::Error;
-use typst::diag::{FileError, FileResult, SourceDiagnostic, Warned};
-use typst::foundations::{Bytes, Datetime, Dict, Module, Scope};
+use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
+use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::model::Document;
 use typst::syntax::{package::PackageSpec, FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
@@ -63,8 +63,8 @@ impl TypstTemplateCollection {
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
-    /// and `input` is the `value_name`).
+    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
+    /// and `inputs` is the `value_name`).
     pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
@@ -74,8 +74,8 @@ impl TypstTemplateCollection {
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
-    /// and `input` is the `value_name`).
+    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
+    /// and `inputs` is the `value_name`).
     pub fn custom_inject_location_mut<S>(&mut self, module_name: S, value_name: S)
     where
         S: Into<String>,
@@ -221,7 +221,7 @@ impl TypstTemplateCollection {
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import typst_as_lib: input`.
+    /// in a typst script with `#import sys: inputs`.
     ///
     /// Example:
     ///
@@ -236,19 +236,76 @@ impl TypstTemplateCollection {
     /// // Struct that implements Into<Dict>.
     /// let inputs = todo!();
     /// let tracer = Default::default();
-    /// let doc = template_collection.compile_with_inputs(&mut tracer, TEMPLATE_ID, inputs)
+    /// let doc = template_collection.compile_with_input(&mut tracer, TEMPLATE_ID, inputs)
     ///     .expect("Typst error!");
     /// ```
     pub fn compile_with_input<F, D>(
         &self,
         main_source_id: F,
-        inputs: D,
+        input: D,
     ) -> Warned<Result<Document, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
         D: Into<Dict>,
     {
-        self.compile_helper(main_source_id, Some(inputs))
+        self.compile_helper(main_source_id, Some(input))
+    }
+
+    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
+    /// in a typst script with `#import sys: inputs`. Mutates the library each call.
+    ///
+    /// Example:
+    ///
+    /// ```rust
+    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+    /// static TEMPLATE_ID: &str = "/template.typ";
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    /// let template_collection = TypstTemplateCollection::new(vec![font])
+    ///     .add_static_file_resolver([(TEMPLATE_ID, TEMPLATE)]);
+    /// // Struct that implements Into<Dict>.
+    /// let inputs = todo!();
+    /// let tracer = Default::default();
+    /// let doc = template_collection.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
+    ///     .expect("Typst error!");
+    /// ```
+    pub fn compile_with_input_fast<F, D>(
+        &mut self,
+        main_source_id: F,
+        input: D,
+    ) -> Warned<Result<Document, TypstAsLibError>>
+    where
+        F: Into<FileIdNewType>,
+        D: Into<Dict>,
+    {
+        let Self {
+            library,
+            inject_location,
+            ..
+        } = self;
+        let res = inject_input_into_library(library, inject_location.as_ref(), input);
+        if let Err(err) = res {
+            return Warned {
+                output: Err(err),
+                warnings: Default::default(),
+            };
+        };
+        let collection = &*self;
+
+        let FileIdNewType(main_source_id) = main_source_id.into();
+        let world = TypstWorld {
+            collection,
+            main_source_id,
+            library: Cow::Borrowed(&collection.library),
+            now: Utc::now(),
+        };
+        let Warned { output, warnings } = typst::compile(&world);
+
+        Warned {
+            output: output.map_err(Into::into),
+            warnings,
+        }
     }
 
     /// Just call `typst::compile()`
@@ -273,7 +330,7 @@ impl TypstTemplateCollection {
             collection: self,
             main_source_id,
             library: if let Some(inputs) = inputs {
-                let lib = self.inject_input(inputs);
+                let lib = self.create_injected_library(inputs);
                 match lib {
                     Ok(lib) => Cow::Owned(lib),
                     Err(err) => {
@@ -296,7 +353,7 @@ impl TypstTemplateCollection {
         }
     }
 
-    fn inject_input<D>(&self, inputs: D) -> Result<LazyHash<Library>, TypstAsLibError>
+    fn create_injected_library<D>(&self, input: D) -> Result<LazyHash<Library>, TypstAsLibError>
     where
         D: Into<Dict>,
     {
@@ -305,24 +362,8 @@ impl TypstTemplateCollection {
             library,
             ..
         } = self;
-        let (module_name, value_name) = if let Some(InjectLocation {
-            module_name,
-            value_name,
-        }) = inject_location
-        {
-            (module_name.as_str(), value_name.as_str())
-        } else {
-            ("typst_as_lib", "input")
-        };
         let mut lib = library.clone();
-        let global = lib.global.scope_mut();
-        if global.get(module_name).is_some() {
-            return Err(TypstAsLibError::InjectLocationIsNotEmpty);
-        }
-        let mut scope = Scope::new();
-        scope.define(value_name, inputs.into());
-        let module = Module::new(module_name, scope);
-        global.define_module(module);
+        inject_input_into_library(&mut lib, inject_location.as_ref(), input)?;
         Ok(lib)
     }
 
@@ -349,6 +390,40 @@ impl TypstTemplateCollection {
         }
         Err(last_error)
     }
+}
+
+fn inject_input_into_library<'a, D>(
+    library: &'a mut LazyHash<Library>,
+    inject_location: Option<&InjectLocation>,
+    input: D,
+) -> Result<&'a mut Library, TypstAsLibError>
+where
+    D: Into<Dict>,
+{
+    let (module_name, value_name) = if let Some(InjectLocation {
+        module_name,
+        value_name,
+    }) = inject_location
+    {
+        (module_name.as_str(), value_name.as_str())
+    } else {
+        ("sys", "inputs")
+    };
+    let global = library.global.scope_mut();
+    let mut scope = Scope::new();
+    scope.define(value_name, input.into());
+    if let Some(value) = global.get_mut(module_name).transpose()? {
+        if let Value::Module(module) = value {
+            *module.scope_mut() = scope;
+        } else {
+            let module = Module::new(module_name, scope);
+            *value = Value::Module(module);
+        }
+    } else {
+        let module = Module::new(module_name, scope);
+        global.define_module(module);
+    }
+    Ok(library)
 }
 
 pub struct TypstTemplate {
@@ -394,8 +469,8 @@ impl TypstTemplate {
     }
 
     /// Use other typst location for injected inputs
-    /// (instead of`#import typst_as_lib: input`, where `typst_as_lib` is the `module_name`
-    /// and `input` is the `value_name`).
+    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
+    /// and `inputs` is the `value_name`).
     pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
     where
         S: Into<String>,
@@ -495,6 +570,39 @@ impl TypstTemplate {
         collection.compile_with_input(*source_id, inputs)
     }
 
+    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
+    /// in a typst script with `#import sys: inputs`. Mutates the library each call.
+    ///
+    /// Example:
+    ///
+    /// ```rust
+    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
+    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+    /// static TEMPLATE_ID: &str = "/template.typ";
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    /// let template = TypstTemplate::new(vec![font], TEMPLATE);
+    /// // Struct that implements Into<Dict>.
+    /// let inputs = todo!();
+    /// let tracer = Default::default();
+    /// let doc = template.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
+    ///     .expect("Typst error!");
+    /// ```
+    pub fn compile_with_input_fast<D>(
+        &mut self,
+        input: D,
+    ) -> Warned<Result<Document, TypstAsLibError>>
+    where
+        D: Into<Dict>,
+    {
+        let Self {
+            source_id,
+            collection,
+            ..
+        } = self;
+        collection.compile_with_input_fast(*source_id, input)
+    }
+
     /// Just call `typst::compile()`
     pub fn compile(&self) -> Warned<Result<Document, TypstAsLibError>> {
         let Self {
@@ -565,8 +673,14 @@ pub enum TypstAsLibError {
     TypstFile(#[from] FileError),
     #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
-    #[error("Library could not be initialized. Inject location is not empty.")]
-    InjectLocationIsNotEmpty,
+    #[error("Typst hinted String: {}", 0.to_string())]
+    HintedString(HintedString),
+}
+
+impl From<HintedString> for TypstAsLibError {
+    fn from(value: HintedString) -> Self {
+        TypstAsLibError::HintedString(value)
+    }
 }
 
 impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
