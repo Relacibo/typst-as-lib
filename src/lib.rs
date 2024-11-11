@@ -1,9 +1,10 @@
 use std::borrow::Cow;
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use cached_file_resolver::IntoCachedFileResolver;
 use chrono::{DateTime, Datelike, Duration, Utc};
-use ecow::{eco_vec, EcoVec};
+use ecow::EcoVec;
 use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
     StaticSourceFileResolver,
@@ -33,6 +34,7 @@ pub struct TypstTemplateCollection {
     inject_location: Option<InjectLocation>,
     file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
     library: LazyHash<Library>,
+    comemo_evict_max_age: Option<usize>,
 }
 
 impl TypstTemplateCollection {
@@ -59,6 +61,7 @@ impl TypstTemplateCollection {
             inject_location: Default::default(),
             file_resolvers: Default::default(),
             library: Default::default(),
+            comemo_evict_max_age: Some(0),
         }
     }
 
@@ -196,6 +199,11 @@ impl TypstTemplateCollection {
         self.add_file_resolver_mut(FileSystemResolver::new(root.into()).into_cached());
     }
 
+    pub fn comemo_evict_max_age(&mut self, comemo_evict_max_age: Option<usize>) -> &mut Self {
+        self.comemo_evict_max_age = comemo_evict_max_age;
+        self
+    }
+
     #[cfg(feature = "packages")]
     /// Adds `PackageResolver` to the file resolvers.
     /// When `package` is set in `FileId`, it will download the package from the typst package
@@ -270,6 +278,10 @@ impl TypstTemplateCollection {
     /// let doc = template_collection.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
     ///     .expect("Typst error!");
     /// ```
+    #[deprecated(
+        since = "0.11.1",
+        note = "Use TypstTemplate::compile_with_input() instead!"
+    )]
     pub fn compile_with_input_fast<F, D>(
         &mut self,
         main_source_id: F,
@@ -285,12 +297,15 @@ impl TypstTemplateCollection {
             ..
         } = self;
         let res = inject_input_into_library(library, inject_location.as_ref(), input);
-        if let Err(err) = res {
-            return Warned {
-                output: Err(err),
-                warnings: Default::default(),
-            };
-        };
+        match res {
+            Ok(_) => (),
+            Err(err) => {
+                return Warned {
+                    output: Err(err),
+                    warnings: Default::default(),
+                }
+            }
+        }
         let collection = &*self;
 
         let FileIdNewType(main_source_id) = main_source_id.into();
@@ -347,6 +362,10 @@ impl TypstTemplateCollection {
         };
         let Warned { output, warnings } = typst::compile(&world);
 
+        if let Some(comemo_evict_max_age) = self.comemo_evict_max_age {
+            comemo::evict(comemo_evict_max_age);
+        }
+
         Warned {
             output: output.map_err(Into::into),
             warnings,
@@ -362,9 +381,9 @@ impl TypstTemplateCollection {
             library,
             ..
         } = self;
-        let mut lib = library.clone();
+        let mut lib = library.deref().clone();
         inject_input_into_library(&mut lib, inject_location.as_ref(), input)?;
-        Ok(lib)
+        Ok(LazyHash::new(lib))
     }
 
     fn resolve_file(&self, file_id: FileId) -> FileResult<Cow<Bytes>> {
@@ -393,7 +412,7 @@ impl TypstTemplateCollection {
 }
 
 fn inject_input_into_library<'a, D>(
-    library: &'a mut LazyHash<Library>,
+    library: &'a mut Library,
     inject_location: Option<&InjectLocation>,
     input: D,
 ) -> Result<&'a mut Library, TypstAsLibError>
@@ -466,6 +485,11 @@ impl TypstTemplate {
             collection,
             source_id,
         }
+    }
+
+    pub fn comemo_evict_max_age(&mut self, comemo_evict_max_age: Option<usize>) -> &mut Self {
+        self.collection.comemo_evict_max_age = comemo_evict_max_age;
+        self
     }
 
     /// Use other typst location for injected inputs
@@ -588,6 +612,10 @@ impl TypstTemplate {
     /// let doc = template.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
     ///     .expect("Typst error!");
     /// ```
+    #[deprecated(
+        since = "0.11.1",
+        note = "Use TypstTemplate::compile_with_input() instead!"
+    )]
     pub fn compile_with_input_fast<D>(
         &mut self,
         input: D,
