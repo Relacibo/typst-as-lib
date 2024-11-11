@@ -1,7 +1,14 @@
 # Changelog
 
+## [0.11.1] - *
+- Call `comemo::evict(0)` after each call of `typst::compile()`. Can be configured and turned off.
+- Deprecate `TypstTemplate[Collection]::compile_with_input_fast()` as it is not really faster. 
+- Fix: update Cache of library after changing input
+
 ## [0.11.0] - *
 - `IntoCachedFileResolver` - wraps the file resolver in an in-memory cache
+- Add `TypstTemplate[Collection]::compile_with_input_fast()` that takes a mutable reference to `TypstTemplate[Collection]`
+- Inject input to sys: input without needing to reinitialize the whole library every time
 
 ## [0.10.0] - 2024-10-19
 
