@@ -1,5 +1,5 @@
 use std::fs;
-use typst::foundations::{Bytes, Smart};
+use typst::foundations::Bytes;
 use typst::text::Font;
 use typst_as_lib::TypstTemplate;
 
@@ -19,7 +19,8 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+    let template = TypstTemplate::new(TEMPLATE_FILE)
+        .add_fonts([font])
         .with_static_source_file_resolver([("function.typ", OTHER_TEMPLATE_FILE)])
         .with_static_file_resolver([("./images/typst.png", IMAGE)]);
 

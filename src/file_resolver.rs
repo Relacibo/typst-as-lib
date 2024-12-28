@@ -80,7 +80,7 @@ impl FileResolver for StaticSourceFileResolver {
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
         self.sources
             .get(&id)
-            .map(|s| Cow::Borrowed(s))
+            .map(Cow::Borrowed)
             .ok_or_else(|| not_found(id))
     }
 }
@@ -112,7 +112,7 @@ impl FileResolver for StaticFileResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
         self.binaries
             .get(&id)
-            .map(|b| Cow::Borrowed(b))
+            .map(Cow::Borrowed)
             .ok_or_else(|| not_found(id))
     }
 
@@ -174,7 +174,7 @@ impl FileSystemResolver {
             .resolve(&dir)
             .ok_or_else(|| FileError::NotFound(dir.to_path_buf()))?;
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
-        Ok(content.into())
+        Ok(content)
     }
 }
 
