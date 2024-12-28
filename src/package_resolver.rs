@@ -16,7 +16,9 @@ use typst::{
 };
 
 use crate::{
-    cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver}, file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR}, util::{bytes_to_source, not_found}
+    cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver},
+    file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR},
+    util::{bytes_to_source, not_found},
 };
 
 // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L15
@@ -68,7 +70,7 @@ impl<C> PackageResolverBuilder<C> {
 
     pub fn build(self) -> PackageResolver<C> {
         let Self { ureq, cache } = self;
-        let ureq = ureq.unwrap_or_else(|| ureq::Agent::new());
+        let ureq = ureq.unwrap_or_else(ureq::Agent::new);
         PackageResolver { ureq, cache }
     }
 }
@@ -95,9 +97,8 @@ impl<C> PackageResolver<C> {
             return Err(not_found(id));
         }
 
-        match cache.lookup_cached(package, id) {
-            Ok(Some(cached)) => return Ok(cached),
-            _ => (),
+        if let Ok(Some(cached)) = cache.lookup_cached(package, id) {
+            return Ok(cached);
         }
 
         let PackageSpec {
@@ -149,7 +150,7 @@ impl<C> FileResolver for PackageResolver<C>
 where
     C: PackageResolverCache,
 {
-    fn resolve_binary<'a>(&'a self, id: FileId) -> FileResult<Cow<'a, Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         let cached: Bytes = self.resolve_bytes(id)?;
         Ok(Cow::Owned(cached))
     }
@@ -177,12 +178,19 @@ trait PackageResolverCache {
 
 /// File system cache with given path
 /// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
+#[derive(Debug, Clone)]
 pub struct FileSystemCache(pub PathBuf);
 
 impl FileSystemCache {
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for FileSystemCache {
+    fn default() -> Self {
         let cache_dir = dirs::cache_dir()
-            .map(|p| Cow::Owned(p))
+            .map(Cow::Owned)
             .unwrap_or_else(|| Cow::Borrowed(Path::new(".")));
         let path = cache_dir.join(DEFAULT_PACKAGES_SUBDIR);
         Self(path)
@@ -217,11 +225,12 @@ impl PackageResolverCache for FileSystemCache {
 }
 
 /// In memory cache
+#[derive(Debug, Clone, Default)]
 pub struct InMemoryCache(pub Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
 
 impl InMemoryCache {
     pub fn new() -> Self {
-        Self(Default::default())
+        Self::default()
     }
 }
 
@@ -271,6 +280,7 @@ impl PackageResolverCache for InMemoryCache {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct SourceOrBytesCreator;
 
 trait CreateBytesOrSource<T> {

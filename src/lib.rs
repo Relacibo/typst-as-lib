@@ -1,5 +1,6 @@
 use std::borrow::Cow;
-use std::ops::Deref;
+use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 
 use cached_file_resolver::IntoCachedFileResolver;
@@ -27,14 +28,29 @@ pub(crate) mod util;
 pub mod package_resolver;
 
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
-
 pub struct TypstTemplateCollection {
     book: LazyHash<FontBook>,
     fonts: Vec<Font>,
+    #[cfg(feature = "typst-kit-fonts")]
+    lazy_fonts: Vec<typst_kit::fonts::FontSlot>,
     inject_location: Option<InjectLocation>,
     file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
     library: LazyHash<Library>,
     comemo_evict_max_age: Option<usize>,
+}
+impl Default for TypstTemplateCollection {
+    fn default() -> Self {
+        Self {
+            book: LazyHash::new(FontBook::new()),
+            fonts: Default::default(),
+            #[cfg(feature = "typst-kit-fonts")]
+            lazy_fonts: Default::default(),
+            inject_location: Default::default(),
+            file_resolvers: Default::default(),
+            library: Default::default(),
+            comemo_evict_max_age: Some(0),
+        }
+    }
 }
 
 impl TypstTemplateCollection {
@@ -47,22 +63,12 @@ impl TypstTemplateCollection {
     /// // ...
     /// let font = Font::new(Bytes::from(FONT), 0)
     ///     .expect("Could not parse font!");
-    /// let template = TypstTemplate::new(vec![font])
+    /// let template = TypstTemplate::new()
+    ///     .add_fonts([font])
     ///     .with_static_file_resolver([TEMPLATE], []);
     /// ```
-    pub fn new<V>(fonts: V) -> Self
-    where
-        V: Into<Vec<Font>>,
-    {
-        let fonts = fonts.into();
-        Self {
-            book: LazyHash::new(FontBook::from_fonts(&fonts)),
-            fonts,
-            inject_location: Default::default(),
-            file_resolvers: Default::default(),
-            library: Default::default(),
-            comemo_evict_max_age: Some(0),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Use other typst location for injected inputs
@@ -105,8 +111,56 @@ impl TypstTemplateCollection {
         I: IntoIterator<Item = F>,
         F: Into<Font>,
     {
-        let fonts = fonts.into_iter().map(Into::into);
+        let fonts = fonts.into_iter().map(Into::into).collect::<Vec<_>>();
+        let mut temp = FontBook::new();
+        mem::swap(&mut temp, self.book.deref_mut());
+        for f in fonts.iter() {
+            self.book.push(f.info().clone())
+        }
+        self.book = LazyHash::new(temp);
         self.fonts.extend(fonts);
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts(mut self) -> Self {
+        self.add_typst_kit_fonts_mut();
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts_with<I, P>(mut self, font_dirs: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<std::path::Path>,
+    {
+        self.add_typst_kit_fonts_with_mut(font_dirs);
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts_mut(&mut self) -> &mut Self {
+        self.add_typst_kit_fonts_with_mut::<_, &str>([]);
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts_with_mut<I, P>(&mut self, font_dirs: I) -> &mut Self
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<std::path::Path>,
+    {
+        let typst_kit::fonts::Fonts { book, fonts } =
+            typst_kit::fonts::FontSearcher::new().search_with(font_dirs);
+        let mut temp = FontBook::new();
+        mem::swap(&mut temp, self.book.deref_mut());
+        for (_, iter) in book.families() {
+            for info in iter {
+                temp.push(info.clone());
+            }
+        }
+        self.book = LazyHash::new(temp);
+        self.lazy_fonts = fonts;
         self
     }
 
@@ -239,7 +293,7 @@ impl TypstTemplateCollection {
     /// static TEMPLATE_ID: &str = "/template.typ";
     /// // ...
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    /// let template_collection = TypstTemplateCollection::new(vec![font])
+    /// let template_collection = TypstTemplateCollection::new().add_fonts([font])
     ///     .add_static_file_resolver([(TEMPLATE_ID, TEMPLATE)]);
     /// // Struct that implements Into<Dict>.
     /// let inputs = todo!();
@@ -257,70 +311,6 @@ impl TypstTemplateCollection {
         D: Into<Dict>,
     {
         self.compile_helper(main_source_id, Some(input))
-    }
-
-    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import sys: inputs`. Mutates the library each call.
-    ///
-    /// Example:
-    ///
-    /// ```rust
-    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-    /// static TEMPLATE_ID: &str = "/template.typ";
-    /// // ...
-    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    /// let template_collection = TypstTemplateCollection::new(vec![font])
-    ///     .add_static_file_resolver([(TEMPLATE_ID, TEMPLATE)]);
-    /// // Struct that implements Into<Dict>.
-    /// let inputs = todo!();
-    /// let tracer = Default::default();
-    /// let doc = template_collection.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
-    ///     .expect("Typst error!");
-    /// ```
-    #[deprecated(
-        since = "0.11.1",
-        note = "Use TypstTemplate::compile_with_input() instead!"
-    )]
-    pub fn compile_with_input_fast<F, D>(
-        &mut self,
-        main_source_id: F,
-        input: D,
-    ) -> Warned<Result<Document, TypstAsLibError>>
-    where
-        F: Into<FileIdNewType>,
-        D: Into<Dict>,
-    {
-        let Self {
-            library,
-            inject_location,
-            ..
-        } = self;
-        let res = inject_input_into_library(library, inject_location.as_ref(), input);
-        match res {
-            Ok(_) => (),
-            Err(err) => {
-                return Warned {
-                    output: Err(err),
-                    warnings: Default::default(),
-                }
-            }
-        }
-        let collection = &*self;
-
-        let FileIdNewType(main_source_id) = main_source_id.into();
-        let world = TypstWorld {
-            collection,
-            main_source_id,
-            library: Cow::Borrowed(&collection.library),
-            now: Utc::now(),
-        };
-        let Warned { output, warnings } = typst::compile(&world);
-
-        Warned {
-            output: output.map_err(Into::into),
-            warnings,
-        }
     }
 
     /// Just call `typst::compile()`
@@ -468,16 +458,15 @@ impl TypstTemplate {
     /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
     /// // ...
     /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    /// let template = TypstTemplate::new(vec![font], TEMPLATE);
+    /// let template = TypstTemplate::new(TEMPLATE).add_fonts([font]);
     /// ```
-    pub fn new<V, S>(fonts: V, source_id: S) -> Self
+    pub fn new<S>(source_id: S) -> Self
     where
-        V: Into<Vec<Font>>,
         S: Into<SourceNewType>,
     {
         let SourceNewType(source) = source_id.into();
         let source_id = source.id();
-        let mut collection = TypstTemplateCollection::new(fonts);
+        let mut collection = TypstTemplateCollection::new();
         collection
             .file_resolvers
             .push(Box::new(MainSourceFileResolver::new(source)));
@@ -511,6 +500,22 @@ impl TypstTemplate {
         F: Into<Font>,
     {
         self.collection.add_fonts_mut(fonts);
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts(mut self) -> Self {
+        self.collection.add_typst_kit_fonts_mut();
+        self
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn add_typst_kit_fonts_with<I, P>(mut self, font_dirs: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<std::path::Path>,
+    {
+        self.collection.add_typst_kit_fonts_with_mut(font_dirs);
         self
     }
 
@@ -594,43 +599,6 @@ impl TypstTemplate {
         collection.compile_with_input(*source_id, inputs)
     }
 
-    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import sys: inputs`. Mutates the library each call.
-    ///
-    /// Example:
-    ///
-    /// ```rust
-    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-    /// static TEMPLATE_ID: &str = "/template.typ";
-    /// // ...
-    /// let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
-    /// let template = TypstTemplate::new(vec![font], TEMPLATE);
-    /// // Struct that implements Into<Dict>.
-    /// let inputs = todo!();
-    /// let tracer = Default::default();
-    /// let doc = template.compile_with_input_fast(&mut tracer, TEMPLATE_ID, inputs)
-    ///     .expect("Typst error!");
-    /// ```
-    #[deprecated(
-        since = "0.11.1",
-        note = "Use TypstTemplate::compile_with_input() instead!"
-    )]
-    pub fn compile_with_input_fast<D>(
-        &mut self,
-        input: D,
-    ) -> Warned<Result<Document, TypstAsLibError>>
-    where
-        D: Into<Dict>,
-    {
-        let Self {
-            source_id,
-            collection,
-            ..
-        } = self;
-        collection.compile_with_input_fast(*source_id, input)
-    }
-
     /// Just call `typst::compile()`
     pub fn compile(&self) -> Warned<Result<Document, TypstAsLibError>> {
         let Self {
@@ -659,7 +627,7 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn main(&self) -> FileId {
-        self.main_source_id.clone()
+        self.main_source_id
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
