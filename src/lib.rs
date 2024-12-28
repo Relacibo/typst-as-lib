@@ -639,7 +639,15 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn font(&self, id: usize) -> Option<Font> {
-        self.collection.fonts.get(id).cloned()
+        let mut res = self.collection.fonts.get(id).cloned();
+        #[cfg(feature = "typst-kit-fonts")]
+        {
+            if res.is_some() {
+                return res;
+            }
+            res = todo!("font-book incorrect")
+        }
+        res
     }
 
     fn today(&self, offset: Option<i64>) -> Option<Datetime> {
