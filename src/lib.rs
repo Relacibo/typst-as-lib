@@ -120,12 +120,9 @@ impl TypstTemplateCollection {
         F: Into<Font>,
     {
         let fonts = fonts.into_iter().map(Into::into).collect::<Vec<_>>();
-        let mut temp = FontBook::new();
-        mem::swap(&mut temp, self.book.deref_mut());
         for f in fonts.iter() {
             self.book.push(f.info().clone())
         }
-        self.book = LazyHash::new(temp);
         self.fonts.extend(fonts);
         self
     }
