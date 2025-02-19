@@ -171,7 +171,7 @@ If you want to compile multiple typst (main) source files you might want to use 
 
 ## Loading fonts
 
-You can add fonts directly to the `TypstTemplate` with `TypstTemplate[Collection]::add_fonts`. You can also activate the feature `typst-kit-fonts` that adds the methods `add_typst_kit_fonts` and `add_typst_kit_fonts_with` to `TypstTemplate[Collection]`. Those methods use the typst-kit library to resolve system fonts.
+You can add fonts directly to the `TypstTemplate` with `TypstTemplate[Collection]::add_fonts`. You can also activate the feature `typst-kit-fonts` that replaces this method with `search_fonts_with` to `TypstTemplate[Collection]`, which uses the typst-kit library to resolve system fonts.
 
 ## TODO
 
