@@ -70,7 +70,7 @@ impl<C> PackageResolverBuilder<C> {
 
     pub fn build(self) -> PackageResolver<C> {
         let Self { ureq, cache } = self;
-        let ureq = ureq.unwrap_or_else(ureq::Agent::new);
+        let ureq = ureq.unwrap_or_else(ureq::Agent::new_with_defaults);
         PackageResolver { ureq, cache }
     }
 }
@@ -131,9 +131,9 @@ impl<C> PackageResolver<C> {
             response = Some(resp);
             break;
         }
-        let response = response.ok_or_else(|| PackageError::NetworkFailed(Some(last_error)))?;
+        let mut response = response.ok_or_else(|| PackageError::NetworkFailed(Some(last_error)))?;
 
-        let mut d = GzDecoder::new(response.into_reader());
+        let mut d = GzDecoder::new(response.body_mut().as_reader());
         let mut archive = Vec::new();
         d.read_to_end(&mut archive)
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
@@ -296,7 +296,7 @@ impl CreateBytesOrSource<Source> for SourceOrBytesCreator {
 
 impl CreateBytesOrSource<Bytes> for SourceOrBytesCreator {
     fn try_create(&self, _id: FileId, value: &[u8]) -> FileResult<Bytes> {
-        Ok(Bytes::from(value))
+        Ok(Bytes::new(value.to_vec()))
     }
 }
 

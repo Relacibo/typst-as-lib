@@ -18,14 +18,14 @@ typst-kit-embed-fonts = ["typst-kit?/embed-fonts"]
 binstall-tar = { version = "0.4", optional = true }
 chrono = "0.4"
 comemo = "0.4"
-dirs = "5.0"
+dirs = "6.0"
 ecow = "0.2"
 flate2 = { version = "1.0", optional = true }
 thiserror = "2.0"
-typst = "0.12.0"
-ureq = { version = "2.12", optional = true }
-typst-kit = { version = "0.12", default-features = false, optional = true }
+typst = "0.13.0"
+ureq = { version = "3.0", optional = true }
+typst-kit = { version = "0.13", default-features = false, optional = true }
 
 [dev-dependencies]
 derive_typst_intoval = "0.3.0"
-typst-pdf = "0.12.0"
+typst-pdf = "0.13.0"

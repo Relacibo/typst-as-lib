@@ -1,6 +1,6 @@
 // from https://typst.app/universe/package/codelst
-#import "@preview/codelst:2.0.1": sourcecode
-#import "@preview/cetz:0.2.2"
+#import "@preview/codelst:2.0.2": sourcecode
+#import "@preview/cetz:0.3.2"
 #import "function.typ": alert
 
 #sourcecode[```typ

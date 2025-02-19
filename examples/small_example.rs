@@ -10,7 +10,7 @@ static OUTPUT: &str = "./examples/output.pdf";
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
-    let font = Font::new(Bytes::from(FONT), 0).expect("Could not parse font!");
+    let font = Font::new(Bytes::new(FONT.to_vec()), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
@@ -39,7 +39,7 @@ fn dummy_data() -> Content {
                 text: Some("Hello World!".to_owned()),
                 num1: 1,
                 num2: Some(42),
-                image: Some(Bytes::from(IMAGE)),
+                image: Some(Bytes::new(IMAGE.to_vec())),
             },
             ContentElement {
                 heading: "Bar".to_owned(),

@@ -1,6 +1,5 @@
 use std::borrow::Cow;
-use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use cached_file_resolver::IntoCachedFileResolver;
@@ -13,12 +12,11 @@ use file_resolver::{
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
-use typst::model::Document;
 use typst::syntax::package::PackageSpec;
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::Library;
+use typst::{Document, Library};
 use util::not_found;
 
 pub mod cached_file_resolver;
@@ -80,10 +78,11 @@ impl TypstTemplateCollection {
     /// Use other typst location for injected inputs
     /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
     /// and `inputs` is the `value_name`).
-    pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
-    where
-        S: Into<String>,
-    {
+    pub fn custom_inject_location(
+        mut self,
+        module_name: &'static str,
+        value_name: &'static str,
+    ) -> Self {
         self.custom_inject_location_mut(module_name, value_name);
         self
     }
@@ -91,13 +90,14 @@ impl TypstTemplateCollection {
     /// Use other typst location for injected inputs
     /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
     /// and `inputs` is the `value_name`).
-    pub fn custom_inject_location_mut<S>(&mut self, module_name: S, value_name: S)
-    where
-        S: Into<String>,
-    {
+    pub fn custom_inject_location_mut(
+        &mut self,
+        module_name: &'static str,
+        value_name: &'static str,
+    ) {
         self.inject_location = Some(InjectLocation {
-            module_name: module_name.into(),
-            value_name: value_name.into(),
+            module_name,
+            value_name,
         });
     }
 
@@ -222,7 +222,7 @@ impl TypstTemplateCollection {
     where
         IB: IntoIterator<Item = (F, B)>,
         F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        B: Into<BytesNewType>,
     {
         self.with_static_file_resolver_mut(binaries);
         self
@@ -233,7 +233,7 @@ impl TypstTemplateCollection {
     where
         IB: IntoIterator<Item = (F, B)>,
         F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        B: Into<BytesNewType>,
     {
         self.add_file_resolver_mut(StaticFileResolver::new(binaries));
     }
@@ -305,34 +305,37 @@ impl TypstTemplateCollection {
     /// let doc = template_collection.compile_with_input(&mut tracer, TEMPLATE_ID, inputs)
     ///     .expect("Typst error!");
     /// ```
-    pub fn compile_with_input<F, D>(
+    pub fn compile_with_input<F, D, Doc>(
         &self,
         main_source_id: F,
         input: D,
-    ) -> Warned<Result<Document, TypstAsLibError>>
+    ) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
         D: Into<Dict>,
+        Doc: Document,
     {
         self.compile_helper(main_source_id, Some(input))
     }
 
     /// Just call `typst::compile()`
-    pub fn compile<F>(&self, main_source_id: F) -> Warned<Result<Document, TypstAsLibError>>
+    pub fn compile<F, Doc>(&self, main_source_id: F) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
+        Doc: Document,
     {
-        self.compile_helper::<_, Dict>(main_source_id, None)
+        self.compile_helper::<_, Dict, _>(main_source_id, None)
     }
 
-    fn compile_helper<F, D>(
+    fn compile_helper<F, D, Doc>(
         &self,
         main_source_id: F,
         inputs: Option<D>,
-    ) -> Warned<Result<Document, TypstAsLibError>>
+    ) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: Into<FileIdNewType>,
         D: Into<Dict>,
+        Doc: Document,
     {
         let FileIdNewType(main_source_id) = main_source_id.into();
         let library = if let Some(inputs) = inputs {
@@ -419,14 +422,15 @@ where
         value_name,
     }) = inject_location
     {
-        (module_name.as_str(), value_name.as_str())
+        (*module_name, *value_name)
     } else {
         ("sys", "inputs")
     };
     let global = library.global.scope_mut();
     let mut scope = Scope::new();
     scope.define(value_name, input.into());
-    if let Some(value) = global.get_mut(module_name).transpose()? {
+    if let Some(value) = global.get_mut(module_name) {
+        let value = value.write().map_err(TypstAsLibError::Unspecified)?;
         if let Value::Module(module) = value {
             *module.scope_mut() = scope;
         } else {
@@ -435,7 +439,7 @@ where
         }
     } else {
         let module = Module::new(module_name, scope);
-        global.define_module(module);
+        global.define(module_name, module);
     }
     Ok(library)
 }
@@ -489,10 +493,11 @@ impl TypstTemplate {
     /// Use other typst location for injected inputs
     /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
     /// and `inputs` is the `value_name`).
-    pub fn custom_inject_location<S>(mut self, module_name: S, value_name: S) -> Self
-    where
-        S: Into<String>,
-    {
+    pub fn custom_inject_location(
+        mut self,
+        module_name: &'static str,
+        value_name: &'static str,
+    ) -> Self {
         self.collection
             .custom_inject_location_mut(module_name, value_name);
         self
@@ -567,7 +572,7 @@ impl TypstTemplate {
     where
         IB: IntoIterator<Item = (F, B)>,
         F: Into<FileIdNewType>,
-        B: Into<Bytes>,
+        B: Into<BytesNewType>,
     {
         self.collection.with_static_file_resolver_mut(binaries);
         self
@@ -599,9 +604,10 @@ impl TypstTemplate {
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
     /// in a typst script with `#import sys: inputs`.
-    pub fn compile_with_input<D>(&self, inputs: D) -> Warned<Result<Document, TypstAsLibError>>
+    pub fn compile_with_input<D, Doc>(&self, inputs: D) -> Warned<Result<Doc, TypstAsLibError>>
     where
         D: Into<Dict>,
+        Doc: Document,
     {
         let Self {
             source_id,
@@ -612,7 +618,10 @@ impl TypstTemplate {
     }
 
     /// Just call `typst::compile()`
-    pub fn compile(&self) -> Warned<Result<Document, TypstAsLibError>> {
+    pub fn compile<Doc>(&self) -> Warned<Result<Doc, TypstAsLibError>>
+    where
+        Doc: Document,
+    {
         let Self {
             source_id,
             collection,
@@ -677,8 +686,8 @@ impl typst::World for TypstWorld<'_> {
 
 #[derive(Debug, Clone)]
 struct InjectLocation {
-    module_name: String,
-    value_name: String,
+    module_name: &'static str,
+    value_name: &'static str,
 }
 
 #[derive(Debug, Clone, Error)]
@@ -693,6 +702,8 @@ pub enum TypstAsLibError {
     HintedString(HintedString),
     #[error("Could not aquire RwLock!")]
     AquireRwLock,
+    #[error("Unspecified: {0}!")]
+    Unspecified(ecow::EcoString),
 }
 
 impl From<HintedString> for TypstAsLibError {
@@ -708,7 +719,7 @@ impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
 }
 
 #[derive(Clone, Debug, Hash)]
-pub struct FileIdNewType(FileId);
+pub struct FileIdNewType(pub FileId);
 
 impl From<FileId> for FileIdNewType {
     fn from(value: FileId) -> Self {
@@ -736,7 +747,7 @@ impl From<(PackageSpec, &str)> for FileIdNewType {
 }
 
 #[derive(Clone, Debug, Hash)]
-pub struct SourceNewType(Source);
+pub struct SourceNewType(pub Source);
 
 impl From<Source> for SourceNewType {
     fn from(source: Source) -> Self {
@@ -788,6 +799,21 @@ impl From<String> for SourceNewType {
 impl From<&str> for SourceNewType {
     fn from(source: &str) -> Self {
         SourceNewType::from(source.to_owned())
+    }
+}
+
+#[derive(Clone, Debug, Hash)]
+pub struct BytesNewType(pub Bytes);
+
+impl From<Bytes> for BytesNewType {
+    fn from(bytes: Bytes) -> Self {
+        BytesNewType(bytes)
+    }
+}
+
+impl From<&[u8]> for BytesNewType {
+    fn from(bytes: &[u8]) -> Self {
+        BytesNewType(Bytes::new(bytes.to_vec()))
     }
 }
 

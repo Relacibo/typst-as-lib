@@ -1,11 +1,14 @@
 # Changelog
 
-## [0.12.0] - 2024-12-28
+## [0.12.0] - 2025-02-19
 
 - Remove deprecated `TypstTemplate[Collection]::compile_with_input_fast()`.
-- Removed fonts argument from `TypstTemplate[Collection]::new()`. Use `TypstTemplate[Collection]::add_fonts()` to add fonts
+- Removed fonts argument from `TypstTemplate[Collection]::new()`. Use `TypstTemplate[Collection]::add_fonts()` to add fonts.
 - Added optional feature `fonts` that adds capability to use typst-kit for font resolving.
   - Adds function `TypstTemplate[Collection]::search_fonts_with` that accepts `FontSearcherOptions`.
+- Updated to typst version 1.13.0
+  - Note: Bytes now have to be casted manually: `Bytes::from(array)` now is `Bytes::new(array.to_vec())`
+  - Note: `TypstTemplate[Collection]::compile` now returns `impl Document` as output.
 
 ## [0.11.1] - 2024-11-11
 

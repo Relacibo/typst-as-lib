@@ -1,7 +1,6 @@
 {
   "rust-analyzer.cargo.features": [
     "packages",
-    // "typst-kit-fonts"
   ],
   "typst-lsp.exportPdf": "never"
 }

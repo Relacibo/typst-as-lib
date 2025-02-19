@@ -15,7 +15,7 @@ static OUTPUT: &str = "./examples/output.pdf";
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
-    let font = Font::new(Bytes::from(FONT), 0)
+    let font = Font::new(Bytes::new(FONT.to_vec()), 0)
         .expect("Could not parse font!");
 
     // Read in fonts and the main source file.
