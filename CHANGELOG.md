@@ -5,6 +5,7 @@
 - Remove deprecated `TypstTemplate[Collection]::compile_with_input_fast()`.
 - Removed fonts argument from `TypstTemplate[Collection]::new()`. Use `TypstTemplate[Collection]::add_fonts()` to add fonts
 - Added optional feature `fonts` that adds capability to use typst-kit for font resolving.
+  - Adds function `TypstTemplate[Collection]::search_fonts_with` that accepts `FontSearcherOptions`.
 
 ## [0.11.1] - 2024-11-11
 

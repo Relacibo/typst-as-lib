@@ -14,7 +14,8 @@ use thiserror::Error;
 use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::model::Document;
-use typst::syntax::{package::PackageSpec, FileId, Source, VirtualPath};
+use typst::syntax::package::PackageSpec;
+use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::Library;
@@ -27,28 +28,33 @@ pub(crate) mod util;
 #[cfg(feature = "packages")]
 pub mod package_resolver;
 
+#[cfg(feature = "typst-kit-fonts")]
+pub mod font_searcher_options;
+
 // Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 pub struct TypstTemplateCollection {
     book: LazyHash<FontBook>,
-    fonts: Vec<Font>,
-    #[cfg(feature = "typst-kit-fonts")]
-    lazy_fonts: Vec<typst_kit::fonts::FontSlot>,
     inject_location: Option<InjectLocation>,
     file_resolvers: Vec<Box<dyn FileResolver + Send + Sync + 'static>>,
     library: LazyHash<Library>,
     comemo_evict_max_age: Option<usize>,
+    #[cfg(not(feature = "typst-kit-fonts"))]
+    fonts: Vec<Font>,
+    #[cfg(feature = "typst-kit-fonts")]
+    fonts: Option<std::sync::Arc<std::sync::Mutex<Vec<typst_kit::fonts::FontSlot>>>>,
 }
 impl Default for TypstTemplateCollection {
     fn default() -> Self {
         Self {
             book: LazyHash::new(FontBook::new()),
-            fonts: Default::default(),
-            #[cfg(feature = "typst-kit-fonts")]
-            lazy_fonts: Default::default(),
             inject_location: Default::default(),
             file_resolvers: Default::default(),
             library: Default::default(),
             comemo_evict_max_age: Some(0),
+            #[cfg(not(feature = "typst-kit-fonts"))]
+            fonts: Default::default(),
+            #[cfg(feature = "typst-kit-fonts")]
+            fonts: None,
         }
     }
 }
@@ -63,7 +69,7 @@ impl TypstTemplateCollection {
     /// // ...
     /// let font = Font::new(Bytes::from(FONT), 0)
     ///     .expect("Could not parse font!");
-    /// let template = TypstTemplate::new()
+    /// let template = TypstTemplateCollection::new()
     ///     .add_fonts([font])
     ///     .with_static_file_resolver([TEMPLATE], []);
     /// ```
@@ -96,6 +102,7 @@ impl TypstTemplateCollection {
     }
 
     /// Add Fonts
+    #[cfg(not(feature = "typst-kit-fonts"))]
     pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
     where
         I: IntoIterator<Item = F>,
@@ -106,6 +113,7 @@ impl TypstTemplateCollection {
     }
 
     /// Add Fonts
+    #[cfg(not(feature = "typst-kit-fonts"))]
     pub fn add_fonts_mut<I, F>(&mut self, fonts: I) -> &mut Self
     where
         I: IntoIterator<Item = F>,
@@ -122,45 +130,44 @@ impl TypstTemplateCollection {
         self
     }
 
+    /// Use typst_kit::fonts::FontSearcher when looking up fonts
+    /// ```rust
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0)
+    ///     .expect("Could not parse font!");
+    ///
+    /// let template = TypstTemplateCollection::new()
+    ///     .search_fonts_with(Default::default())
+    ///     .with_static_file_resolver([TEMPLATE], []);
+    /// ```
     #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts(mut self) -> Self {
-        self.add_typst_kit_fonts_mut();
-        self
-    }
-
-    #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts_with<I, P>(mut self, font_dirs: I) -> Self
+    pub fn search_fonts_with<I, P>(
+        mut self,
+        options: font_searcher_options::FontSearcherOptions<I, P>,
+    ) -> Self
     where
         I: IntoIterator<Item = P>,
         P: AsRef<std::path::Path>,
     {
-        self.add_typst_kit_fonts_with_mut(font_dirs);
+        self.with_font_searcher_mut(options);
         self
     }
 
     #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts_mut(&mut self) -> &mut Self {
-        self.add_typst_kit_fonts_with_mut::<_, &str>([]);
-        self
-    }
-
-    #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts_with_mut<I, P>(&mut self, font_dirs: I) -> &mut Self
+    pub fn with_font_searcher_mut<I, P>(
+        &mut self,
+        options: font_searcher_options::FontSearcherOptions<I, P>,
+    ) -> &mut Self
     where
         I: IntoIterator<Item = P>,
         P: AsRef<std::path::Path>,
     {
-        let typst_kit::fonts::Fonts { book, fonts } =
-            typst_kit::fonts::FontSearcher::new().search_with(font_dirs);
-        let mut temp = FontBook::new();
-        mem::swap(&mut temp, self.book.deref_mut());
-        for (_, iter) in book.families() {
-            for info in iter {
-                temp.push(info.clone());
-            }
-        }
-        self.book = LazyHash::new(temp);
-        self.lazy_fonts = fonts;
+        let typst_kit::fonts::Fonts { book, fonts } = typst_kit::fonts::Fonts::searcher()
+            .include_system_fonts(options.include_system_fonts)
+            .search_with(options.include_dirs);
+
+        self.book = LazyHash::new(book);
+        self.fonts = Some(std::sync::Arc::new(std::sync::Mutex::new(fonts)));
         self
     }
 
@@ -331,23 +338,24 @@ impl TypstTemplateCollection {
         D: Into<Dict>,
     {
         let FileIdNewType(main_source_id) = main_source_id.into();
+        let library = if let Some(inputs) = inputs {
+            let lib = self.create_injected_library(inputs);
+            match lib {
+                Ok(lib) => Cow::Owned(lib),
+                Err(err) => {
+                    return Warned {
+                        output: Err(err),
+                        warnings: Default::default(),
+                    };
+                }
+            }
+        } else {
+            Cow::Borrowed(&self.library)
+        };
         let world = TypstWorld {
             collection: self,
             main_source_id,
-            library: if let Some(inputs) = inputs {
-                let lib = self.create_injected_library(inputs);
-                match lib {
-                    Ok(lib) => Cow::Owned(lib),
-                    Err(err) => {
-                        return Warned {
-                            output: Err(err),
-                            warnings: Default::default(),
-                        };
-                    }
-                }
-            } else {
-                Cow::Borrowed(&self.library)
-            },
+            library,
             now: Utc::now(),
         };
         let Warned { output, warnings } = typst::compile(&world);
@@ -494,6 +502,7 @@ impl TypstTemplate {
     }
 
     /// Add Fonts
+    #[cfg(not(feature = "typst-kit-fonts"))]
     pub fn add_fonts<I, F>(mut self, fonts: I) -> Self
     where
         I: IntoIterator<Item = F>,
@@ -503,19 +512,25 @@ impl TypstTemplate {
         self
     }
 
+    /// Use typst_kit::fonts::FontSearcher when looking up fonts
+    /// ```rust
+    /// // ...
+    /// let font = Font::new(Bytes::from(FONT), 0)
+    ///     .expect("Could not parse font!");
+    ///
+    /// let template = TypstTemplate::new(TEMPLATE)
+    ///     .search_fonts_with(Default::default());
+    /// ```
     #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts(mut self) -> Self {
-        self.collection.add_typst_kit_fonts_mut();
-        self
-    }
-
-    #[cfg(feature = "typst-kit-fonts")]
-    pub fn add_typst_kit_fonts_with<I, P>(mut self, font_dirs: I) -> Self
+    pub fn search_fonts_with<I, P>(
+        mut self,
+        options: font_searcher_options::FontSearcherOptions<I, P>,
+    ) -> Self
     where
         I: IntoIterator<Item = P>,
         P: AsRef<std::path::Path>,
     {
-        self.collection.add_typst_kit_fonts_with_mut(font_dirs);
+        self.collection.with_font_searcher_mut(options);
         self
     }
 
@@ -639,14 +654,14 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn font(&self, id: usize) -> Option<Font> {
-        let mut res = self.collection.fonts.get(id).cloned();
+        #[cfg(not(feature = "typst-kit-fonts"))]
+        let res = self.collection.fonts.get(id).cloned();
+
         #[cfg(feature = "typst-kit-fonts")]
-        {
-            if res.is_some() {
-                return res;
-            }
-            res = todo!("font-book incorrect")
-        }
+        let res = {
+            let fonts = self.collection.fonts.as_ref()?.lock().ok()?;
+            fonts[id].get()
+        };
         res
     }
 
@@ -679,6 +694,8 @@ pub enum TypstAsLibError {
     MainSourceFileDoesNotExist(FileId),
     #[error("Typst hinted String: {}", 0.to_string())]
     HintedString(HintedString),
+    #[error("Could not aquire RwLock!")]
+    AquireRwLock,
 }
 
 impl From<HintedString> for TypstAsLibError {
