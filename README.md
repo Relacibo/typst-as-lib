@@ -21,7 +21,7 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    let template = TypstTemplate::new(vec![font], TEMPLATE_FILE);
+    let template = TypstTemplate::new(TEMPLATE_FILE).add_font([font]);
 
     // Run it
     let doc = template
@@ -70,26 +70,32 @@ cargo r --example=small_example
 ```
 
 ## Resolving files
+
 ### Binaries
+
 Use `TypstTemplate::with_static_file_resolver` and add the binaries as key value pairs (`(file_name, &[u8])`).
 
 ### Sources
+
 Use `TypstTemplate::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`).
 
-
-
 ### Local files
+
 Resolving local files can be enabled with `TypstTemplate::with_file_system_resolver`. The root should be the template folder. Files cannot be resolved, if they are outside of root.
 
 Can be enabled like this:
+
 ```rust
-let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+let template = TypstTemplate::new(TEMPLATE_FILE)
+    .add_fonts([font])
     .with_file_system_resolver("./examples/templates");
 ```
 
 If you want to use another local package install path, use:
+
 ```rust
-let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+let template = TypstTemplate::new(TEMPLATE_FILE)
+    .add_fonts([font])
     .add_file_resolver(
         FileSystemResolver::new("./examples/templates")
             .with_local_package_root("local/packages")
@@ -98,19 +104,23 @@ let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
 ```
 
 ### Remote Packages
+
 The `package` feature needs to be enabled.
 
 Can be enabled like this:
+
 ```rust
 let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
     .with_package_file_resolver(None);
 ```
 
-This uses the file system as a cache. 
+This uses the file system as a cache.
 
 If you want to use another cache root path, use:
+
 ```rust
-let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+let template = TypstTemplate::new(TEMPLATE_FILE)
+    .add_fonts([font])
     .add_file_resolver(PackageResolverBuilder::new()
         .set_cache(
             FileSystemCache(PathBuf::from("cache/root"))
@@ -120,8 +130,10 @@ let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
 ```
 
 If you want to instead use the memory as cache, use:
+
 ```rust
-let template = TypstTemplate::new(vec![font], TEMPLATE_FILE)
+let template = TypstTemplate::new(TEMPLATE_FILE)
+    .add_fonts([font])
     .add_file_resolver(PackageResolverBuilder::new()
         .set_cache(
             InMemoryCache::new()
@@ -142,7 +154,7 @@ cargo r --example=resolve_static
 
 #### Local files and remote packages
 
-See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver. 
+See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver.
 
 ```bash
 cargo r --example=resolve_files --features=package
@@ -150,7 +162,7 @@ cargo r --example=resolve_files --features=package
 
 ### Custom file resolver
 
-You can also write your own file resolver. You need to implement the Trait `FileResolver` and  pass it to the `TypstTemplate::add_file_resolver` function.
+You can also write your own file resolver. You need to implement the Trait `FileResolver` and pass it to the `TypstTemplate::add_file_resolver` function.
 
 ## TypstTemplateCollection
 
@@ -159,16 +171,16 @@ If you want to compile multiple typst (main) source files you might want to use 
 
 ## Loading fonts
 
-Loading fonts is not in the scope of this library (yet?). If you are interested in that, write an issue.
-
-- [This](https://github.com/typst/typst/blob/a2c980715958bc3fd71e1f0a5975fea3f5b63b85/crates/typst-cli/src/fonts.rs#L69) is how the typst-cli loads system fonts.
-- Here is an [example](https://github.com/tfachmann/typst-as-library/blob/dd9a93379b486dc0a2916b956360db84b496822e/src/lib.rs#L216) of loading fonts from a folder.
+You can add fonts directly to the `TypstTemplate` with `TypstTemplate[Collection]::add_fonts`. You can also activate the feature `typst-kit-fonts` that adds the methods `add_typst_kit_fonts` and `add_typst_kit_fonts_with` to `TypstTemplate[Collection]`. Those methods use the typst-kit library to resolve system fonts.
 
 ## TODO
-- allow usage of reqwest instead of ureq with a feature flag
-- fonts
 
-## Some links, idk
+- allow usage of reqwest instead of ureq with a feature flag
+
+## Previous work
 
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
+
+## Maybe useful
+
 - [https://github.com/KillTheMule/derive_typst_intoval](https://github.com/KillTheMule/derive_typst_intoval)
