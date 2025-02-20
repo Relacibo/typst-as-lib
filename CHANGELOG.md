@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.12.2] - 2025-02-20
+- `FontSearcherOptions` variables are now `pub(crate)`
+- Add `typst-kit-embed-fonts` feature to use `typst-kit` feature `embed-fonts`. This causes `typst-kit` use fonts from [typst-assets](https://github.com/typst/typst-assets).
+
 ## [0.12.1] - 2025-02-20
 - Add getter for fonts variable in `TypstTemplateCollection`, with feature `typst-kit-fonts`.
 - Removed unnecessary (each font slot has a OnceLock) Arc<Mutex<_>> wrapper around fonts with feature `typst-kit-fonts`.

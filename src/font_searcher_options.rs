@@ -4,8 +4,10 @@ where
     I: IntoIterator<Item = P>,
     P: AsRef<std::path::Path>,
 {
-    pub include_system_fonts: bool,
-    pub include_dirs: I,
+    pub(crate) include_system_fonts: bool,
+    pub(crate) include_dirs: I,
+    #[cfg(feature = "typst-kit-embed-fonts")]
+    pub(crate) include_embedded_fonts: bool,
 }
 
 impl Default for FontSearcherOptions<[std::path::PathBuf; 0], std::path::PathBuf> {
@@ -13,6 +15,8 @@ impl Default for FontSearcherOptions<[std::path::PathBuf; 0], std::path::PathBuf
         Self {
             include_system_fonts: true,
             include_dirs: Default::default(),
+            #[cfg(feature = "typst-kit-embed-fonts")]
+            include_embedded_fonts: true,
         }
     }
 }
@@ -33,6 +37,12 @@ where
         self
     }
 
+    #[cfg(feature = "typst-kit-embed-fonts")]
+    pub fn include_embedded_fonts(mut self, include_embedded_fonts: bool) -> Self {
+        self.include_embedded_fonts = include_embedded_fonts;
+        self
+    }
+
     pub fn include_dirs<I2, P2>(self, include_dirs: I2) -> FontSearcherOptions<I2, P2>
     where
         I2: IntoIterator<Item = P2>,
@@ -41,6 +51,8 @@ where
         FontSearcherOptions::<I2, P2> {
             include_system_fonts: self.include_system_fonts,
             include_dirs,
+            #[cfg(feature = "typst-kit-embed-fonts")]
+            include_embedded_fonts: self.include_embedded_fonts,
         }
     }
 }

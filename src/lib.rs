@@ -159,9 +159,21 @@ impl TypstTemplateCollection {
         I: IntoIterator<Item = P>,
         P: AsRef<std::path::Path>,
     {
-        let typst_kit::fonts::Fonts { book, fonts } = typst_kit::fonts::Fonts::searcher()
-            .include_system_fonts(options.include_system_fonts)
-            .search_with(options.include_dirs);
+        let font_searcher_options::FontSearcherOptions {
+            include_system_fonts,
+            include_dirs,
+            #[cfg(feature = "typst-kit-embed-fonts")]
+            include_embedded_fonts,
+        } = options;
+        let typst_kit::fonts::Fonts { book, fonts } = {
+            let mut searcher = typst_kit::fonts::Fonts::searcher();
+            #[cfg(feature = "typst-kit-embed-fonts")]
+            searcher.include_embedded_fonts(include_embedded_fonts);
+
+            searcher
+                .include_system_fonts(include_system_fonts)
+                .search_with(include_dirs)
+        };
 
         self.book = LazyHash::new(book);
         self.fonts = Some(fonts);

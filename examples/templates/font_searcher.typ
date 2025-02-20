@@ -1,2 +1,2 @@
-#set text(font: "SourceCodePro", 11pt)
+#set text(font: "NewCM10", 11pt)
 == Hello World
