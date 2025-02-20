@@ -21,7 +21,7 @@ fn main() {
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    let template = TypstTemplate::new(TEMPLATE_FILE).add_font([font]);
+    let template = TypstTemplate::new(TEMPLATE_FILE).add_fonts([font]);
 
     // Run it
     let doc = template
