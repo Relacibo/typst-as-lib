@@ -2217,7 +2217,7 @@ dependencies = [
 
 [[package]]
 name = "typst-as-lib"
-version = "0.13.0"
+version = "0.12.1"
 dependencies = [
  "binstall-tar",
  "chrono",
