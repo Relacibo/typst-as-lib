@@ -99,7 +99,7 @@ let template = TypstTemplate::new(TEMPLATE_FILE)
     .add_file_resolver(
         FileSystemResolver::new("./examples/templates")
             .with_local_package_root("local/packages")
-            .cached()
+            .into_cached()
     );
 ```
 
@@ -125,11 +125,12 @@ let template = TypstTemplate::new(TEMPLATE_FILE)
         .set_cache(
             FileSystemCache(PathBuf::from("cache/root"))
         )
-        .build().cached()
+        .build().into_cached()
     );
 ```
+Note that the Cache Wrapper created with the call to `into_cached(self)` creates a in memory cache for Binary files and `Source` files. 
 
-If you want to instead use the memory as cache, use:
+If you want to instead use the memory as (binary) cache, use:
 
 ```rust
 let template = TypstTemplate::new(TEMPLATE_FILE)
@@ -138,9 +139,11 @@ let template = TypstTemplate::new(TEMPLATE_FILE)
         .set_cache(
             InMemoryCache::new()
         )
-        .build().cached()
+        .build().into_cached()
     );
 ```
+
+Note that the Cache Wrapper created with the call to `into_cached(self)` only caches the `Source` files (each single file lazily) here and the `InMemoryCache` caches all binaries (eagerly after the first download of the whole package, which is triggered (lazily), when requested in a typst script).
 
 ### Examples
 
