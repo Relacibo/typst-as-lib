@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1] - 2025-02-20
+- Add getter for fonts variable in `TypstTemplateCollection`, with feature `typst-kit-fonts`.
+- Removed unnecessary (each font slot has a OnceLock) Arc<Mutex<_>> wrapper around fonts with feature `typst-kit-fonts`.
+- Removed unnecessary Error `AquireRwLock`
+- Added example `font_searcher`
+
 ## [0.12.0] - 2025-02-19
 
 - Remove deprecated `TypstTemplate[Collection]::compile_with_input_fast()`.

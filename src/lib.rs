@@ -39,7 +39,7 @@ pub struct TypstTemplateCollection {
     #[cfg(not(feature = "typst-kit-fonts"))]
     fonts: Vec<Font>,
     #[cfg(feature = "typst-kit-fonts")]
-    fonts: Option<std::sync::Arc<std::sync::Mutex<Vec<typst_kit::fonts::FontSlot>>>>,
+    fonts: Option<Vec<typst_kit::fonts::FontSlot>>,
 }
 impl Default for TypstTemplateCollection {
     fn default() -> Self {
@@ -164,7 +164,7 @@ impl TypstTemplateCollection {
             .search_with(options.include_dirs);
 
         self.book = LazyHash::new(book);
-        self.fonts = Some(std::sync::Arc::new(std::sync::Mutex::new(fonts)));
+        self.fonts = Some(fonts);
         self
     }
 
@@ -284,6 +284,11 @@ impl TypstTemplateCollection {
             builder = builder.ureq_agent(ureq);
         }
         self.add_file_resolver_mut(builder.build().into_cached());
+    }
+
+    #[cfg(feature = "typst-kit-fonts")]
+    pub fn get_fonts(&self) -> Option<&Vec<typst_kit::fonts::FontSlot>> {
+        self.fonts.as_ref()
     }
 
     /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
@@ -664,10 +669,7 @@ impl typst::World for TypstWorld<'_> {
         let res = self.collection.fonts.get(id).cloned();
 
         #[cfg(feature = "typst-kit-fonts")]
-        let res = {
-            let fonts = self.collection.fonts.as_ref()?.lock().ok()?;
-            fonts[id].get()
-        };
+        let res = { self.collection.fonts.as_ref()?[id].get() };
         res
     }
 
@@ -700,8 +702,6 @@ pub enum TypstAsLibError {
     MainSourceFileDoesNotExist(FileId),
     #[error("Typst hinted String: {}", 0.to_string())]
     HintedString(HintedString),
-    #[error("Could not aquire RwLock!")]
-    AquireRwLock,
     #[error("Unspecified: {0}!")]
     Unspecified(ecow::EcoString),
 }
