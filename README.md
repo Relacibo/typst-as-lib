@@ -146,7 +146,7 @@ let template = TypstTemplate::new(TEMPLATE_FILE)
 
 #### Static binaries and sources
 
-See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs) which uses the static file resolvers.
+See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs) which uses the static file resolvers.
 
 ```bash
 cargo r --example=resolve_static
@@ -154,7 +154,7 @@ cargo r --example=resolve_static
 
 #### Local files and remote packages
 
-See [example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver.
+See example [resolve_packages](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver.
 
 ```bash
 cargo r --example=resolve_files --features=package
@@ -172,6 +172,8 @@ If you want to compile multiple typst (main) source files you might want to use 
 ## Loading fonts
 
 You can add fonts directly to the `TypstTemplate` with `TypstTemplate[Collection]::add_fonts`. You can also activate the feature `typst-kit-fonts` that replaces this method with `search_fonts_with` to `TypstTemplate[Collection]`, which uses the typst-kit library to resolve system fonts.
+
+See example [font_searcher](https://github.com/Relacibo/typst-as-lib/blob/main/examples/font_searcher.rs).
 
 ## TODO
 
