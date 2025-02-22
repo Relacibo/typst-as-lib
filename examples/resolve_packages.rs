@@ -5,7 +5,8 @@ use typst::foundations::Bytes;
 #[cfg(feature = "packages")]
 use typst::text::Font;
 #[cfg(feature = "packages")]
-use typst_as_lib::TypstTemplate;
+use typst_as_lib::TypstEngine;
+
 #[cfg(feature = "packages")]
 static OUTPUT: &str = "./examples/output.pdf";
 
@@ -20,15 +21,18 @@ static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
 
 #[cfg(feature = "packages")]
 fn main() {
+
     let font = Font::new(Bytes::new(FONT.to_vec()), 0).expect("Could not parse font!");
 
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    let template = TypstTemplate::new(TEMPLATE_FILE)
-        .add_fonts([font])
+    let template = TypstEngine::builder()
+        .main_file(TEMPLATE_FILE)
+        .fonts([font])
         .with_file_system_resolver(ROOT)
-        .with_package_file_resolver(None);
+        .with_package_file_resolver()
+        .build();
 
     // Run it
     let doc = template

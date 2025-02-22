@@ -1,8 +1,7 @@
 use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
 use typst::foundations::{Bytes, Dict, IntoValue};
-use typst::text::Font;
-use typst_as_lib::TypstTemplate;
+use typst_as_lib::TypstEngine;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
@@ -10,12 +9,13 @@ static OUTPUT: &str = "./examples/output.pdf";
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
 
 fn main() {
-    let font = Font::new(Bytes::new(FONT.to_vec()), 0).expect("Could not parse font!");
-
     // Read in fonts and the main source file.
     // We can use this template more than once, if needed (Possibly
     // with different input each time).
-    let template = TypstTemplate::new(TEMPLATE_FILE).add_fonts([font]);
+    let template = TypstEngine::builder()
+        .main_file(TEMPLATE_FILE)
+        .fonts([FONT])
+        .build();
 
     // Run it
     let doc = template
@@ -50,17 +50,17 @@ fn dummy_data() -> Content {
     }
 }
 
+#[derive(Debug, Clone, IntoValue, IntoDict)]
+struct Content {
+    v: Vec<ContentElement>,
+}
+
 // Implement Into<Dict> manually, so we can just pass the struct
 // to the compile function.
 impl From<Content> for Dict {
     fn from(value: Content) -> Self {
         value.into_dict()
     }
-}
-
-#[derive(Debug, Clone, IntoValue, IntoDict)]
-struct Content {
-    v: Vec<ContentElement>,
 }
 
 #[derive(Debug, Clone, Default, IntoValue, IntoDict)]

@@ -12,8 +12,8 @@ use typst::{
 
 use crate::{
     cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver},
+    conversions::{IntoBytes, IntoFileId, IntoSource},
     util::{bytes_to_source, not_found},
-    BytesNewType, FileIdNewType, SourceNewType,
 };
 
 // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L18
@@ -59,12 +59,12 @@ impl StaticSourceFileResolver {
     pub(crate) fn new<IS, S>(sources: IS) -> Self
     where
         IS: IntoIterator<Item = S>,
-        S: Into<SourceNewType>,
+        S: IntoSource,
     {
         let sources = sources
             .into_iter()
             .map(|s| {
-                let SourceNewType(s) = s.into();
+                let s = s.into_source();
                 (s.id(), s)
             })
             .collect();
@@ -94,16 +94,12 @@ impl StaticFileResolver {
     pub(crate) fn new<IB, F, B>(binaries: IB) -> Self
     where
         IB: IntoIterator<Item = (F, B)>,
-        F: Into<FileIdNewType>,
-        B: Into<BytesNewType>,
+        F: IntoFileId,
+        B: IntoBytes,
     {
         let binaries = binaries
             .into_iter()
-            .map(|(id, b)| {
-                let FileIdNewType(id) = id.into();
-                let BytesNewType(b) = b.into();
-                (id, b)
-            })
+            .map(|(id, b)| (id.into_file_id(), b.into_bytes()))
             .collect();
         Self { binaries }
     }

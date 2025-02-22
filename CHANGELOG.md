@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.0] - 2025-02-22
+- `TypstTemplate` and `TypstTemplateCollection` have been more or less replaced by `TypstEngine`.
+- `TypstEngine::builder()` gives you the `TypstEngineBuilder`, where the Engine can be configured.
+- `TypstEngineBuilder::build()` then builds the `TypstEngine`. 
+- `TypstEngine::compile` and `TypstEngine::compile_with_input` remain more or less the same.
+- All `*_mut` functions have been scrapped.
+- The `TypstTemplateCollection::add_fonts` has been moved/renamed to `TypstEngine::fonts`.
+- `TypstEngine::fonts` now accepts `&[u8]` and `Vec<u8>` and reads out the font automatically.
+
+### Migration
+- instead of `TypstTemplate[Collection]::new()` use: `TypstEngine::builder()` and after configuration call `TypstEngineBuilder::build()`.
+- instead of `TypstTemplate::new(file)` use `TypstEngine::builder().main_file(file). ... .build()`
+
+
+
 ## [0.12.2] - 2025-02-20
 - `FontSearcherOptions` variables are now `pub(crate)`
 - Add `typst-kit-embed-fonts` feature to use `typst-kit` feature `embed-fonts`. This causes `typst-kit` use fonts from [typst-assets](https://github.com/typst/typst-assets).
