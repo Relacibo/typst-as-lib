@@ -12,12 +12,12 @@ use flate2::read::GzDecoder;
 use typst::{
     diag::{FileError, FileResult, PackageError},
     foundations::Bytes,
-    syntax::{package::PackageSpec, FileId, Source, VirtualPath},
+    syntax::{FileId, Source, VirtualPath, package::PackageSpec},
 };
 
 use crate::{
     cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver},
-    file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR},
+    file_resolver::{DEFAULT_PACKAGES_SUBDIR, FileResolver},
     util::{bytes_to_source, not_found},
 };
 
@@ -38,11 +38,12 @@ pub struct PackageResolverBuilder<C = ()> {
 }
 
 impl PackageResolverBuilder<()> {
-    #[deprecated = "Use `PackageResolverBuilder::builder()` instead!"]
+    #[deprecated(since = "0.14.0", note = "Use `PackageResolver::builder()` instead")]
     pub fn new() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
     }
 
+    #[deprecated(since = "0.14.1", note = "Use `PackageResolver::builder()` instead")]
     pub fn builder() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
     }
@@ -148,13 +149,19 @@ impl<C> PackageResolverBuilder<C> {
 }
 
 #[derive(Debug, Clone)]
-pub struct PackageResolver<C> {
+pub struct PackageResolver<C = ()> {
     #[cfg(feature = "ureq")]
     ureq: ureq::Agent,
     #[cfg(feature = "reqwest")]
     reqwest: reqwest::blocking::Client,
     cache: C,
     request_retry_count: u32,
+}
+
+impl PackageResolver {
+    pub fn builder() -> PackageResolverBuilder<()> {
+        PackageResolverBuilder::default()
+    }
 }
 
 impl<C> PackageResolver<C> {

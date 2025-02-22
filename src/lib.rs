@@ -386,8 +386,8 @@ impl<T> TypstTemplateEngineBuilder<T> {
     ///         .with_package_file_resolver(None);
     /// ```
     pub fn with_package_file_resolver(self) -> Self {
-        use package_resolver::PackageResolverBuilder;
-        let file_resolver = PackageResolverBuilder::builder()
+        use package_resolver::PackageResolver;
+        let file_resolver = PackageResolver::builder()
             .with_file_system_cache()
             .build()
             .into_cached();

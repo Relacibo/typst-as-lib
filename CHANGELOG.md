@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.14.1] - 2025-02-22
+
+- Deprecate `PackageResolverBuilder::builder` function in favour of added `PackageResolver::builder`
+- Deprecate `FileSystemResolver::with_local_package_root` function in favour of added `FileSystemResolver::local_package_root` for consistency
+
 ## [0.14.0] - 2025-02-22
 
 - Added package resolving using `reqwest` (blocking) instead of `ureq`

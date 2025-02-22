@@ -133,11 +133,12 @@ If you want to use another cache root path, use:
 let template = TypstEngine::builder()
     .main_file(TEMPLATE_FILE)
     .fonts([font])
-    .add_file_resolver(PackageResolverBuilder::new()
+    .add_file_resolver(PackageResolver::new()
         .cache(
             FileSystemCache(PathBuf::from("cache/root"))
         )
-        .build().into_cached()
+        .build()
+        .into_cached()
     )
     .build();
 ```
@@ -149,11 +150,12 @@ If you want to instead use the memory as (binary) cache, use:
 let template = TypstEngine::build()
     .main_file(TEMPLATE_FILE)
     .add_fonts([font])
-    .add_file_resolver(PackageResolverBuilder::builder()
+    .add_file_resolver(PackageResolver::builder()
         .cache(
             InMemoryCache::new()
         )
-        .build().into_cached()
+        .build()
+        .into_cached()
     )
     .build();
 ```

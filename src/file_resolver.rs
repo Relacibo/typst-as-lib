@@ -137,9 +137,21 @@ impl FileSystemResolver {
     }
 
     /// Use other path to look for local packages
+    #[deprecated(
+        since = "0.14.1",
+        note = "Use `FileSystemResolver::local_package_root` instead"
+    )]
     pub fn with_local_package_root(self, path: PathBuf) -> Self {
         Self {
             local_package_root: Some(path),
+            ..self
+        }
+    }
+
+    /// Use other path to look for local packages
+    pub fn local_package_root(self, local_package_root: PathBuf) -> Self {
+        Self {
+            local_package_root: Some(local_package_root),
             ..self
         }
     }
