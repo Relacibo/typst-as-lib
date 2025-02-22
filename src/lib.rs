@@ -411,6 +411,8 @@ impl<T> TypstTemplateEngineBuilder<T> {
                 book.push(f.info().clone());
             }
         }
+        
+        #[allow(unused_mut)]
         let mut fonts: Vec<_> = fonts.into_iter().flatten().map(FontEnum::Font).collect();
 
         #[cfg(feature = "typst-kit-fonts")]
