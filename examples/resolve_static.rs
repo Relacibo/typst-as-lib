@@ -2,13 +2,9 @@ use std::fs;
 use typst_as_lib::TypstEngine;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/resolve_static.typ");
-
 static OTHER_TEMPLATE_FILE: &str = include_str!("./templates/function.typ");
-
 static IMAGE: &[u8] = include_bytes!("./templates/images/typst.png");
-
 static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-
 static OUTPUT: &str = "./examples/output.pdf";
 
 fn main() {

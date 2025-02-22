@@ -29,3 +29,11 @@ typst-kit = { version = "0.13", default-features = false, optional = true }
 [dev-dependencies]
 derive_typst_intoval = "0.3.0"
 typst-pdf = "0.13.0"
+
+[[example]]
+name = "resolve_packages"
+required-features = ["packages"]
+
+[[example]]
+name = "font_searcher"
+required-features = ["typst-kit-fonts", "typst-kit-embed-fonts"]
