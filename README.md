@@ -105,7 +105,7 @@ let template = TypstEngine::builder()
     .fonts([font])
     .add_file_resolver(
         FileSystemResolver::new("./examples/templates")
-            .with_local_package_root("local/packages")
+            .local_package_root("local/packages")
             .into_cached()
     )
     .build();
