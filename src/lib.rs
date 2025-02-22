@@ -25,7 +25,10 @@ pub mod conversions;
 pub mod file_resolver;
 pub(crate) mod util;
 
-#[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
+#[cfg(all(
+    feature = "packages",
+    any(target_arch = "wasm32", feature = "ureq", feature = "reqwest")
+))]
 pub mod package_resolver;
 
 #[cfg(feature = "typst-kit-fonts")]
@@ -376,7 +379,10 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
-    #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
+    #[cfg(all(
+        feature = "packages",
+        any(target_arch = "wasm32", feature = "ureq", feature = "reqwest")
+    ))]
     /// Adds `PackageResolver` to the file resolvers.
     /// When `package` is set in `FileId`, it will download the package from the typst package
     /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).

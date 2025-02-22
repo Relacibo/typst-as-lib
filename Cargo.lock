@@ -2854,6 +2854,7 @@ dependencies = [
  "typst-kit",
  "typst-pdf",
  "ureq",
+ "web-sys",
 ]
 
 [[package]]

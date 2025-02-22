@@ -5,5 +5,6 @@
     "typst-kit-embed-fonts",
     "reqwest"
   ],
+  "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
   "typst-lsp.exportPdf": "never"
 }

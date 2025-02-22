@@ -12,12 +12,12 @@ use flate2::read::GzDecoder;
 use typst::{
     diag::{FileError, FileResult, PackageError},
     foundations::Bytes,
-    syntax::{package::PackageSpec, FileId, Source, VirtualPath},
+    syntax::{FileId, Source, VirtualPath, package::PackageSpec},
 };
 
 use crate::{
     cached_file_resolver::{CachedFileResolver, IntoCachedFileResolver},
-    file_resolver::{FileResolver, DEFAULT_PACKAGES_SUBDIR},
+    file_resolver::{DEFAULT_PACKAGES_SUBDIR, FileResolver},
     util::{bytes_to_source, not_found},
 };
 
@@ -31,7 +31,7 @@ static REQUEST_RETRY_COUNT: u32 = 3;
 pub struct PackageResolverBuilder<C = ()> {
     #[cfg(feature = "ureq")]
     ureq: Option<ureq::Agent>,
-    #[cfg(feature = "reqwest")]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
     reqwest: Option<reqwest::blocking::Client>,
     cache: C,
     request_retry_count: Option<u32>,
@@ -62,7 +62,7 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
-    #[cfg(feature = "reqwest")]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
     pub fn reqwest_client(self, reqwest: reqwest::blocking::Client) -> Self {
         Self {
             reqwest: Some(reqwest),
@@ -73,17 +73,17 @@ impl<C> PackageResolverBuilder<C> {
     pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
         let Self {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             reqwest,
             ..
         } = self;
         PackageResolverBuilder {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             reqwest,
             cache,
         }
@@ -92,17 +92,17 @@ impl<C> PackageResolverBuilder<C> {
     pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemCache> {
         let Self {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest,
             ..
         } = self;
         PackageResolverBuilder {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest,
             cache: FileSystemCache::new(),
         }
@@ -111,17 +111,17 @@ impl<C> PackageResolverBuilder<C> {
     pub fn with_in_memory_cache(self) -> PackageResolverBuilder<InMemoryCache> {
         let Self {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest,
             ..
         } = self;
         PackageResolverBuilder {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest,
             cache: InMemoryCache::new(),
         }
@@ -130,17 +130,17 @@ impl<C> PackageResolverBuilder<C> {
     pub fn build(self) -> PackageResolver<C> {
         let Self {
             request_retry_count,
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq,
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest,
             cache,
         } = self;
         PackageResolver {
             request_retry_count: request_retry_count.unwrap_or(REQUEST_RETRY_COUNT),
-            #[cfg(feature = "ureq")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
             ureq: ureq.unwrap_or_else(ureq::Agent::new_with_defaults),
-            #[cfg(feature = "reqwest")]
+            #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
             reqwest: reqwest.unwrap_or_else(reqwest::blocking::Client::default),
             cache,
         }
@@ -149,9 +149,9 @@ impl<C> PackageResolverBuilder<C> {
 
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C> {
-    #[cfg(feature = "ureq")]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "ureq"))]
     ureq: ureq::Agent,
-    #[cfg(feature = "reqwest")]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "reqwest"))]
     reqwest: reqwest::blocking::Client,
     cache: C,
     request_retry_count: u32,
@@ -232,13 +232,15 @@ impl<C> PackageResolver<C> {
         Ok(body.into_reader())
     }
 
-    #[cfg(all(not(feature = "ureq"), feature = "reqwest"))]
+    #[cfg(all(
+        not(feature = "ureq"),
+        not(target_arch = "wasm32"),
+        feature = "reqwest"
+    ))]
     fn make_get_request(
         &self,
         url: &str,
     ) -> Result<bytes::buf::Reader<bytes::Bytes>, PackageError> {
-        use bytes::Buf;
-
         let Self { reqwest, .. } = self;
         let resp = reqwest
             .get(url)
@@ -253,6 +255,38 @@ impl<C> PackageResolver<C> {
         }
         let bytes = resp
             .bytes()
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+        Ok(bytes.reader())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn make_get_request(
+        &self,
+        url: &str,
+    ) -> Result<bytes::buf::Reader<bytes::Bytes>, PackageError> {
+        use bytes::Buf;
+        let opts = web_sys::RequestInit::new();
+        opts.set_method("GET");
+        opts.set_mode(web_sys::RequestMode::Cors);
+        let request = web_sys::Request::new_with_str_and_init(url, &opts)
+            .map_err(|err|PackageError::NetworkFailed(Some(eco_format!("{err:?}"))))?;
+        request.headers().set("Accept", "*");
+        let window = web_sys::window()
+            .ok_or_else(||PackageError::NetworkFailed(Some(eco_format!("No window!"))))?;
+
+            window.fetch_with_request(&request)
+            .map_err(|err| )?
+            
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+        let status = resp.status();
+        if status != 200 {
+            return Err(PackageError::NetworkFailed(Some(eco_format!(
+                "response returned unsuccessful status code {status}"
+            ))));
+        }
+        let bytes = resp
+            .bytes()
+            .await
             .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
         Ok(bytes.reader())
     }
