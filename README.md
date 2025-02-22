@@ -121,7 +121,7 @@ Can be enabled like this:
 let template = TypstEngine::builder()
     .main_file(TEMPLATE_FILE)
     .fonts([font])
-    .with_package_file_resolver(None)
+    .with_package_file_resolver()
     .build();
 ```
 
@@ -134,7 +134,7 @@ let template = TypstEngine::builder()
     .main_file(TEMPLATE_FILE)
     .fonts([font])
     .add_file_resolver(PackageResolverBuilder::new()
-        .set_cache(
+        .cache(
             FileSystemCache(PathBuf::from("cache/root"))
         )
         .build().into_cached()
@@ -150,7 +150,7 @@ let template = TypstEngine::build()
     .main_file(TEMPLATE_FILE)
     .add_fonts([font])
     .add_file_resolver(PackageResolverBuilder::builder()
-        .set_cache(
+        .cache(
             InMemoryCache::new()
         )
         .build().into_cached()

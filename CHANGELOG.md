@@ -3,7 +3,10 @@
 ## [0.14.0] - 2025-02-22
 
 - Added package resolving using `reqwest` (blocking) instead of `ureq`
-- Added features `ureq` and `reqwest`. When using feature `packages`, you have to choose between one of those for use as http library.
+- Added features `ureq` and `reqwest`. When using feature `packages`, the user has to choose between one of those for use as http library.
+- Added function `request_retry_count` in `PackageFileResolverBuilder`, so the user can optionally set the count of maximum request retries (Default is 3).
+- Deprecated `PackageResolver::new()` in favour of `PackageResolver::builder()`.
+- Renamed function `PackageFileResolverBuilder::set_cache` to `PackageFileResolverBuilder::cache` to be more consistent.
 
 ## [0.13.0] - 2025-02-22
 
