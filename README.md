@@ -20,7 +20,7 @@ fn main() {
     // with different input each time).
     let template = TypstEngine::builder()
         .main_file(TEMPLATE_FILE)
-        .fonts([font])
+        .fonts([FONT])
         .build();
 
     // Run it
