@@ -71,16 +71,17 @@ cargo r --example=small_example
 
 ## Resolving files
 
-### main file
-The `TypstEngine::main_file` call is not needed. You can omit it, although you would have to specify it when calling `TypstEngine::compile`.
+### Binaries and Sources
 
-### Binaries
+Use `TypstEngineBuilder::with_static_file_resolver` and add the binaries as key value pairs (`(file_name, &[u8])`) to add static binary files, that typst can use.
 
-Use `TypstEngineBuilder::with_static_file_resolver` and add the binaries as key value pairs (`(file_name, &[u8])`).
+Use `TypstEngineBuilder::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`) to add static `Source`s.
 
-### Sources
+See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs) which uses the static file resolvers.
 
-Use `TypstEngineBuilder::with_static_source_file_resolver` and add the sources as key value pairs (`(file_name, String)`).
+```bash
+cargo r --example=resolve_static
+```
 
 ### Local files
 
@@ -110,7 +111,7 @@ let template = TypstEngine::builder()
     .build();
 ```
 
-### Remote Packages
+### Remote packages
 
 The `package` feature needs to be enabled.
 
@@ -159,17 +160,7 @@ let template = TypstEngine::build()
 
 Note that the Cache Wrapper created with the call to `into_cached(self)` only caches the `Source` files (each single file lazily) here and the `InMemoryCache` caches all binaries (eagerly after the first download of the whole package, which is triggered (lazily), when requested in a typst script).
 
-### Examples
-
-#### Static binaries and sources
-
-See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs) which uses the static file resolvers.
-
-```bash
-cargo r --example=resolve_static
-```
-
-#### Local files and remote packages
+### Local files and remote packages example
 
 See example [resolve_packages](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver.
 
@@ -186,6 +177,14 @@ You can also write your own file resolver. You need to implement the Trait `File
 You can simply add fonts to the `TypstEngine` with `TypstEngineBuilder::fonts`. You can also activate the feature `typst-kit-fonts` that adds `search_fonts_with` to `TypstEngineBuilder`, which uses the `typst-kit` library to resolve system fonts. You also might additionally use the feature `typst-kit-embed-fonts`, that activates the feature `embed-fonts` for `typst-kit`. This causes `typst-kit` to also embed fonts from [typst-assets](https://github.com/typst/typst-assets) at compile time.
 
 See example [font_searcher](https://github.com/Relacibo/typst-as-lib/blob/main/examples/font_searcher.rs).
+
+```bash
+cargo r --example=font_searcher --features=typst-kit-fonts,typst-kit-embed-fonts
+```
+
+### main file
+
+The `TypstEngine::main_file` call is not needed, it's just for conveniance. You can omit it, and then you pass it to the `TypstEngine::compile` call later. (See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs))
 
 ## TODO
 
