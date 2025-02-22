@@ -186,6 +186,9 @@ cargo r --example=font_searcher --features=typst-kit-fonts,typst-kit-embed-fonts
 
 The `TypstEngine::main_file` call is not needed, it's just for conveniance. You can omit it, and then you pass it to the `TypstEngine::compile` call later. (See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs))
 
+## TODO
+- packages WASM support 
+
 ## Previous work
 
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
