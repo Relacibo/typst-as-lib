@@ -92,7 +92,8 @@ Can be enabled like this:
 let template = TypstEngine::builder()
     .main_file(TEMPLATE_FILE)
     .fonts([font])
-    .with_file_system_resolver("./examples/templates");
+    .with_file_system_resolver("./examples/templates")
+    .build();
 ```
 
 If you want to use another local package install path, use:
@@ -105,7 +106,8 @@ let template = TypstEngine::builder()
         FileSystemResolver::new("./examples/templates")
             .with_local_package_root("local/packages")
             .into_cached()
-    );
+    )
+    .build();
 ```
 
 ### Remote Packages
@@ -118,7 +120,8 @@ Can be enabled like this:
 let template = TypstEngine::builder()
     .main_file(TEMPLATE_FILE)
     .fonts([font])
-    .with_package_file_resolver(None);
+    .with_package_file_resolver(None)
+    .build();
 ```
 
 This uses the file system as a cache.
@@ -134,7 +137,8 @@ let template = TypstEngine::builder()
             FileSystemCache(PathBuf::from("cache/root"))
         )
         .build().into_cached()
-    ).build();
+    )
+    .build();
 ```
 Note that the Cache Wrapper created with the call to `into_cached(self)` creates a in memory cache for Binary files and `Source` files. 
 
@@ -149,7 +153,8 @@ let template = TypstEngine::build()
             InMemoryCache::new()
         )
         .build().into_cached()
-    );
+    )
+    .build();
 ```
 
 Note that the Cache Wrapper created with the call to `into_cached(self)` only caches the `Source` files (each single file lazily) here and the `InMemoryCache` caches all binaries (eagerly after the first download of the whole package, which is triggered (lazily), when requested in a typst script).
