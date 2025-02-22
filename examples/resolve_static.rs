@@ -1,7 +1,5 @@
 use std::fs;
-use typst::foundations::Bytes;
-use typst::text::Font;
-use typst_as_lib::{TypstEngine, TypstTemplateMainFile};
+use typst_as_lib::TypstEngine;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/resolve_static.typ");
 
