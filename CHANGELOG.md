@@ -8,6 +8,7 @@
 - All `*_mut` functions have been scrapped.
 - The `TypstTemplateCollection::add_fonts` has been moved/renamed to `TypstEngine::fonts`.
 - `TypstEngine::fonts` now accepts `&[u8]` and `Vec<u8>` and reads out the font automatically.
+- Sorry for messing with the API so much. Im just never content...
 
 ### Migration
 - instead of `TypstTemplate[Collection]::new()` use: `TypstEngine::builder()` and after configuration call `TypstEngineBuilder::build()`.
