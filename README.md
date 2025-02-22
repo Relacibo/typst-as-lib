@@ -71,7 +71,7 @@ cargo r --example=small_example
 
 ## Resolving files
 
-## main file
+### main file
 The `TypstEngine::main_file` call is not needed. You can omit it, although you would have to specify it when calling `TypstEngine::compile`.
 
 ### Binaries
