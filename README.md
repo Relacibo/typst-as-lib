@@ -113,7 +113,7 @@ let template = TypstEngine::builder()
 
 ### Remote packages
 
-The `package` feature needs to be enabled.
+The features `package` and one of `ureq` or `reqwest` need to be enabled.
 
 Can be enabled like this:
 
@@ -149,7 +149,7 @@ If you want to instead use the memory as (binary) cache, use:
 let template = TypstEngine::build()
     .main_file(TEMPLATE_FILE)
     .add_fonts([font])
-    .add_file_resolver(PackageResolverBuilder::new()
+    .add_file_resolver(PackageResolverBuilder::builder()
         .set_cache(
             InMemoryCache::new()
         )
@@ -185,10 +185,6 @@ cargo r --example=font_searcher --features=typst-kit-fonts,typst-kit-embed-fonts
 ### main file
 
 The `TypstEngine::main_file` call is not needed, it's just for conveniance. You can omit it, and then you pass it to the `TypstEngine::compile` call later. (See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs))
-
-## TODO
-
-- allow usage of reqwest instead of ureq with a feature flag
 
 ## Previous work
 

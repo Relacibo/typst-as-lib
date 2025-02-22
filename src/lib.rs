@@ -25,7 +25,7 @@ pub mod conversions;
 pub mod file_resolver;
 pub(crate) mod util;
 
-#[cfg(feature = "packages")]
+#[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
 pub mod package_resolver;
 
 #[cfg(feature = "typst-kit-fonts")]
@@ -376,7 +376,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
-    #[cfg(feature = "packages")]
+    #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
     /// Adds `PackageResolver` to the file resolvers.
     /// When `package` is set in `FileId`, it will download the package from the typst package
     /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).
@@ -387,7 +387,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// ```
     pub fn with_package_file_resolver(self) -> Self {
         use package_resolver::PackageResolverBuilder;
-        let file_resolver = PackageResolverBuilder::new()
+        let file_resolver = PackageResolverBuilder::builder()
             .with_file_system_cache()
             .build()
             .into_cached();
@@ -411,7 +411,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
                 book.push(f.info().clone());
             }
         }
-        
+
         #[allow(unused_mut)]
         let mut fonts: Vec<_> = fonts.into_iter().flatten().map(FontEnum::Font).collect();
 

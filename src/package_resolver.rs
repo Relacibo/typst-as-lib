@@ -29,17 +29,32 @@ static REQUEST_RETRY_COUNT: u32 = 3;
 
 #[derive(Debug, Clone, Default)]
 pub struct PackageResolverBuilder<C = ()> {
+    #[cfg(feature = "ureq")]
     ureq: Option<ureq::Agent>,
+    #[cfg(feature = "reqwest")]
+    reqwest: Option<reqwest::blocking::Client>,
     cache: C,
+    request_retry_count: Option<u32>,
 }
 
 impl PackageResolverBuilder<()> {
+    #[deprecated = "Use `PackageResolverBuilder::builder()` instead!"]
     pub fn new() -> PackageResolverBuilder<()> {
+        PackageResolverBuilder::default()
+    }
+
+    pub fn builder() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
     }
 }
 
 impl<C> PackageResolverBuilder<C> {
+    pub fn request_retry_count(mut self, request_retry_count: u32) -> Self {
+        self.request_retry_count = Some(request_retry_count);
+        self
+    }
+
+    #[cfg(feature = "ureq")]
     pub fn ureq_agent(self, ureq: ureq::Agent) -> Self {
         Self {
             ureq: Some(ureq),
@@ -47,38 +62,99 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
-    pub fn set_cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
-        let Self { ureq, .. } = self;
-        PackageResolverBuilder { ureq, cache }
+    #[cfg(feature = "reqwest")]
+    pub fn reqwest_client(self, reqwest: reqwest::blocking::Client) -> Self {
+        Self {
+            reqwest: Some(reqwest),
+            ..self
+        }
+    }
+
+    pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
+        let Self {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
+            ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
+            ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
+            cache,
+        }
     }
 
     pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemCache> {
-        let Self { ureq, .. } = self;
-        PackageResolverBuilder {
+        let Self {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
             ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
+            ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
             cache: FileSystemCache::new(),
         }
     }
 
     pub fn with_in_memory_cache(self) -> PackageResolverBuilder<InMemoryCache> {
-        let Self { ureq, .. } = self;
-        PackageResolverBuilder {
+        let Self {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
             ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
+            ..
+        } = self;
+        PackageResolverBuilder {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
+            ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
             cache: InMemoryCache::new(),
         }
     }
 
     pub fn build(self) -> PackageResolver<C> {
-        let Self { ureq, cache } = self;
-        let ureq = ureq.unwrap_or_else(ureq::Agent::new_with_defaults);
-        PackageResolver { ureq, cache }
+        let Self {
+            request_retry_count,
+            #[cfg(feature = "ureq")]
+            ureq,
+            #[cfg(feature = "reqwest")]
+            reqwest,
+            cache,
+        } = self;
+        PackageResolver {
+            request_retry_count: request_retry_count.unwrap_or(REQUEST_RETRY_COUNT),
+            #[cfg(feature = "ureq")]
+            ureq: ureq.unwrap_or_else(ureq::Agent::new_with_defaults),
+            #[cfg(feature = "reqwest")]
+            reqwest: reqwest.unwrap_or_else(reqwest::blocking::Client::default),
+            cache,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C> {
+    #[cfg(feature = "ureq")]
     ureq: ureq::Agent,
+    #[cfg(feature = "reqwest")]
+    reqwest: reqwest::blocking::Client,
     cache: C,
+    request_retry_count: u32,
 }
 
 impl<C> PackageResolver<C> {
@@ -87,7 +163,12 @@ impl<C> PackageResolver<C> {
         SourceOrBytesCreator: CreateBytesOrSource<T>,
         C: PackageResolverCache,
     {
-        let Self { ureq, cache, .. } = self;
+        let Self {
+            request_retry_count,
+            cache,
+            ..
+        } = self;
+
         let Some(package) = id.package() else {
             return Err(not_found(id));
         };
@@ -112,28 +193,16 @@ impl<C> PackageResolver<C> {
             PACKAGE_REPOSITORY_URL, namespace, name, version,
         );
 
-        let mut last_error = eco_format!("");
-        let mut response = None;
-        for _ in 0..REQUEST_RETRY_COUNT {
-            let resp = match ureq.get(&url).call() {
-                Ok(resp) => resp,
-                Err(error) => {
-                    last_error = eco_format!("{error}");
-                    continue;
-                }
-            };
-
-            let status = resp.status();
-            if status != 200 {
-                last_error = eco_format!("response returned unsuccessful status code {status}");
-                continue;
+        let mut reader = Err(PackageError::Other(None));
+        for i in 0..*request_retry_count {
+            reader = self.make_get_request(&url);
+            match reader {
+                Err(_) => eprintln!("Failed fetching {url} (try {})", i + 1),
+                Ok(_) => break,
             }
-            response = Some(resp);
-            break;
         }
-        let mut response = response.ok_or_else(|| PackageError::NetworkFailed(Some(last_error)))?;
 
-        let mut d = GzDecoder::new(response.body_mut().as_reader());
+        let mut d = GzDecoder::new(reader?);
         let mut archive = Vec::new();
         d.read_to_end(&mut archive)
             .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
@@ -143,6 +212,49 @@ impl<C> PackageResolver<C> {
         cache
             .lookup_cached(package, id)
             .and_then(|f| f.ok_or_else(|| not_found(id)))
+    }
+
+    #[cfg(feature = "ureq")]
+    fn make_get_request(&self, url: &str) -> Result<ureq::BodyReader<'static>, PackageError> {
+        let Self { ureq, .. } = self;
+        let resp = ureq
+            .get(url)
+            .call()
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+
+        let status = resp.status();
+        if status != 200 {
+            return Err(PackageError::NetworkFailed(Some(eco_format!(
+                "response returned unsuccessful status code {status}"
+            ))));
+        }
+        let (_, body) = resp.into_parts();
+        Ok(body.into_reader())
+    }
+
+    #[cfg(all(not(feature = "ureq"), feature = "reqwest"))]
+    fn make_get_request(
+        &self,
+        url: &str,
+    ) -> Result<bytes::buf::Reader<bytes::Bytes>, PackageError> {
+        use bytes::Buf;
+
+        let Self { reqwest, .. } = self;
+        let resp = reqwest
+            .get(url)
+            .send()
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+
+        let status = resp.status();
+        if status != 200 {
+            return Err(PackageError::NetworkFailed(Some(eco_format!(
+                "response returned unsuccessful status code {status}"
+            ))));
+        }
+        let bytes = resp
+            .bytes()
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+        Ok(bytes.reader())
     }
 }
 

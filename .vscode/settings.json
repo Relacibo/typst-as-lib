@@ -2,7 +2,8 @@
   "rust-analyzer.cargo.features": [
     "packages",
     "typst-kit-fonts",
-    "typst-kit-embed-fonts"
+    "typst-kit-embed-fonts",
+    "reqwest"
   ],
   "typst-lsp.exportPdf": "never"
 }
