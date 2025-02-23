@@ -190,7 +190,8 @@ The `TypstEngine::main_file` call is not needed, it's just for conveniance. You 
 
 ## TODO
 - Maybe `packages` WASM support, if possible... 
-- Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls.
+- Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls
+- Support multiple typst versions with feature flags
 
 ## Previous work
 
