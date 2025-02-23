@@ -149,7 +149,7 @@ If you want to instead use the memory as (binary) cache, use:
 ```rust
 let template = TypstEngine::build()
     .main_file(TEMPLATE_FILE)
-    .add_fonts([font])
+    .fonts([font])
     .add_file_resolver(PackageResolver::builder()
         .cache(
             InMemoryCache::new()
