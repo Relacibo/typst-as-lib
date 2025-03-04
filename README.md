@@ -1,4 +1,4 @@
-# Typst as lib
+Hi# Typst as lib
 
 Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
 This API is currently not really stable, although I try to implement the features with as little change to the API as possible.
@@ -190,7 +190,7 @@ The `TypstEngine::main_file` call is not needed, it's just for conveniance. You 
 
 ## TODO
 - Maybe `packages` WASM support, if possible... 
-- Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls
+- Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls. Maybe add "shared file resolver".
 - Support multiple typst versions with feature flags
 - Support typst feature to embed files
 
