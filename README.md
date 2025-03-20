@@ -1,4 +1,4 @@
-Hi# Typst as lib
+# Typst as lib
 
 Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
 This API is currently not really stable, although I try to implement the features with as little change to the API as possible.
