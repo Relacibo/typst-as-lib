@@ -448,12 +448,20 @@ impl<T> TypstTemplateEngineBuilder<T> {
             }
         }
 
+        #[cfg(not(feature = "typst-html"))]
+        let library = Default::default();
+
+        #[cfg(feature = "typst-html")]
+        let library = typst::Library::builder()
+            .with_features([typst::Feature::Html].into_iter().collect())
+            .build();
+
         TypstEngine {
             template,
             inject_location,
             file_resolvers,
             comemo_evict_max_age,
-            library: Default::default(),
+            library: LazyHash::new(library),
             book: LazyHash::new(book),
             fonts,
         }

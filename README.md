@@ -188,6 +188,10 @@ cargo r --example=font_searcher --features=typst-kit-fonts,typst-kit-embed-fonts
 
 The `TypstEngine::main_file` call is not needed, it's just for convenience. You can omit it, and then you pass it to the `TypstEngine::compile` call later. (See example [resolve_static](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs))
 
+## HTML
+
+[See example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/html.rs)
+
 ## TODO
 - Maybe `packages` WASM support, if possible... 
 - Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls. Maybe add "shared file resolver".

@@ -1,6 +1,6 @@
 [package]
 name = "typst-as-lib"
-version = "0.14.1"
+version = "0.14.3"
 edition = "2024"
 license = "MIT"
 description = "Small wrapper for typst that makes it easier to use it as a templating engine"
@@ -15,6 +15,7 @@ ureq = ["dep:ureq"]
 reqwest = ["dep:reqwest", "dep:bytes"]
 typst-kit-fonts = ["dep:typst-kit", "typst-kit/fonts"]
 typst-kit-embed-fonts = ["typst-kit?/embed-fonts"]
+typst-html = []
 
 [dependencies]
 binstall-tar = { version = "0.4", optional = true }
@@ -32,7 +33,9 @@ bytes = { version = "1.10",  optional = true }
 
 [dev-dependencies]
 derive_typst_intoval = "0.3.0"
-typst-pdf = "0.13.0"
+typst-pdf = "0.13.1"
+typst-html = "0.13.1"
+typst = "0.13.1"
 
 [[example]]
 name = "resolve_packages"
@@ -41,3 +44,7 @@ required-features = ["packages"]
 [[example]]
 name = "font_searcher"
 required-features = ["typst-kit-fonts", "typst-kit-embed-fonts"]
+
+[[example]]
+name = "html"
+required-features = ["typst-html"]

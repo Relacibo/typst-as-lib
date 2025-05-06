@@ -3,7 +3,8 @@
     "packages",
     "typst-kit-fonts",
     "typst-kit-embed-fonts",
-    "reqwest"
+    "reqwest",
+    "typst-html",
   ],
   "typst-lsp.exportPdf": "never"
 }

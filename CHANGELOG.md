@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.14.3] - 2025-05-06
+
+- Added feature `typst-html`, that allows you to output the document to html. (Also added example for html)
+
+## [0.14.2] - 2025-02-22
+
+- Deprecate `PackageResolverBuilder::builder` function in favour of added `PackageResolver::builder`
+- Deprecate `FileSystemResolver::with_local_package_root` function in favour of added `FileSystemResolver::local_package_root` for consistency
+
 ## [0.14.1] - 2025-02-22
 
 - Deprecate `PackageResolverBuilder::builder` function in favour of added `PackageResolver::builder`
