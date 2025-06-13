@@ -539,13 +539,13 @@ struct InjectLocation {
 
 #[derive(Debug, Clone, Error)]
 pub enum TypstAsLibError {
-    #[error("Typst source error: {}", 0.to_string())]
+    #[error("Typst source error: {0:?}")]
     TypstSource(EcoVec<SourceDiagnostic>),
-    #[error("Typst file error: {}", 0.to_string())]
+    #[error("Typst file error: {0}")]
     TypstFile(#[from] FileError),
     #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
-    #[error("Typst hinted String: {}", 0.to_string())]
+    #[error("Typst hinted String: {0:?}")]
     HintedString(HintedString),
     #[error("Unspecified: {0}!")]
     Unspecified(ecow::EcoString),
