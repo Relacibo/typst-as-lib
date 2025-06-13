@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.14.4] - 2025-06-13
+
+- More informative typst errors (https://github.com/Relacibo/typst-as-lib/pull/13 by niusia-ua)
+
 ## [0.14.3] - 2025-05-06
 
 - Added feature `typst-html`, that allows you to output the document to html. (Also added example for html)

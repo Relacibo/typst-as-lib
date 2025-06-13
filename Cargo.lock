@@ -2838,7 +2838,7 @@ dependencies = [
 
 [[package]]
 name = "typst-as-lib"
-version = "0.14.3"
+version = "0.14.4"
 dependencies = [
  "binstall-tar",
  "bytes",
