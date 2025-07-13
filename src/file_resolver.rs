@@ -15,6 +15,7 @@ use crate::{
     conversions::{IntoBytes, IntoFileId, IntoSource},
     util::{bytes_to_source, not_found},
 };
+use async_trait::async_trait;
 
 // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L18
 /// The default packages sub directory within the package and package cache paths.
@@ -23,6 +24,12 @@ pub const DEFAULT_PACKAGES_SUBDIR: &str = "typst/packages";
 pub trait FileResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>>;
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>>;
+}
+
+#[async_trait]
+pub trait AsyncFileResolver {
+    async fn resolve_binary_async(&self, id: FileId) -> FileResult<Cow<Bytes>>;
+    async fn resolve_source_async(&self, id: FileId) -> FileResult<Cow<Source>>;
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +54,17 @@ impl FileResolver for MainSourceFileResolver {
             return Ok(Cow::Borrowed(main_source));
         }
         Err(not_found(id))
+    }
+}
+
+#[async_trait]
+impl AsyncFileResolver for MainSourceFileResolver {
+    async fn resolve_binary_async(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+        self.resolve_binary(id)
+    }
+
+    async fn resolve_source_async(&self, id: FileId) -> FileResult<Cow<Source>> {
+        self.resolve_source(id)
     }
 }
 
@@ -85,6 +103,17 @@ impl FileResolver for StaticSourceFileResolver {
     }
 }
 
+#[async_trait]
+impl AsyncFileResolver for StaticSourceFileResolver {
+    async fn resolve_binary_async(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+        self.resolve_binary(id)
+    }
+
+    async fn resolve_source_async(&self, id: FileId) -> FileResult<Cow<Source>> {
+        self.resolve_source(id)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StaticFileResolver {
     binaries: HashMap<FileId, Bytes>,
@@ -115,6 +144,17 @@ impl FileResolver for StaticFileResolver {
 
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
         Err(not_found(id))
+    }
+}
+
+#[async_trait]
+impl AsyncFileResolver for StaticFileResolver {
+    async fn resolve_binary_async(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+        self.resolve_binary(id)
+    }
+
+    async fn resolve_source_async(&self, id: FileId) -> FileResult<Cow<Source>> {
+        self.resolve_source(id)
     }
 }
 

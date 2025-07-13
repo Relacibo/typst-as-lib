@@ -33,6 +33,8 @@ pub struct PackageResolverBuilder<C = ()> {
     ureq: Option<ureq::Agent>,
     #[cfg(feature = "reqwest")]
     reqwest: Option<reqwest::blocking::Client>,
+    #[cfg(feature = "async-reqwest")]
+    async_reqwest: Option<reqwest::Client>,
     cache: C,
     request_retry_count: Option<u32>,
 }
@@ -71,6 +73,14 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    #[cfg(feature = "async-reqwest")]
+    pub fn async_reqwest_client(self, async_reqwest: reqwest::Client) -> Self {
+        Self {
+            async_reqwest: Some(async_reqwest),
+            ..self
+        }
+    }
+
     pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
         let Self {
             request_retry_count,
@@ -78,6 +88,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             ..
         } = self;
         PackageResolverBuilder {
@@ -86,6 +98,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+        async_reqwest,
             cache,
         }
     }
@@ -97,6 +111,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             ..
         } = self;
         PackageResolverBuilder {
@@ -105,6 +121,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             cache: FileSystemCache::new(),
         }
     }
@@ -116,6 +134,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             ..
         } = self;
         PackageResolverBuilder {
@@ -124,6 +144,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             cache: InMemoryCache::new(),
         }
     }
@@ -135,6 +157,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq,
             #[cfg(feature = "reqwest")]
             reqwest,
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest,
             cache,
         } = self;
         PackageResolver {
@@ -143,6 +167,8 @@ impl<C> PackageResolverBuilder<C> {
             ureq: ureq.unwrap_or_else(ureq::Agent::new_with_defaults),
             #[cfg(feature = "reqwest")]
             reqwest: reqwest.unwrap_or_else(reqwest::blocking::Client::default),
+            #[cfg(feature = "async-reqwest")]
+            async_reqwest: async_reqwest.unwrap_or_else(reqwest::Client::default),
             cache,
         }
     }
@@ -154,6 +180,8 @@ pub struct PackageResolver<C = ()> {
     ureq: ureq::Agent,
     #[cfg(feature = "reqwest")]
     reqwest: reqwest::blocking::Client,
+    #[cfg(feature = "async-reqwest")]
+    async_reqwest: reqwest::Client,
     cache: C,
     request_retry_count: u32,
 }
@@ -221,6 +249,64 @@ impl<C> PackageResolver<C> {
             .and_then(|f| f.ok_or_else(|| not_found(id)))
     }
 
+
+    #[cfg(feature = "async-reqwest")]
+    async fn resolve_bytes_async<T>(&self, id: FileId) -> FileResult<T>
+    where
+        SourceOrBytesCreator: CreateBytesOrSource<T>,
+        C: PackageResolverCache,
+    {
+        let Self {
+            request_retry_count,
+            cache,
+            ..
+        } = self;
+
+        let Some(package) = id.package() else {
+            return Err(not_found(id));
+        };
+
+        // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L102C16-L102C38
+        if package.namespace != "preview" {
+            return Err(not_found(id));
+        }
+
+        if let Ok(Some(cached)) = cache.lookup_cached(package, id) {
+            return Ok(cached);
+        }
+
+        let PackageSpec {
+            namespace,
+            name,
+            version,
+        } = package;
+
+        let url = format!(
+            "{}/{}/{}-{}.tar.gz",
+            PACKAGE_REPOSITORY_URL, namespace, name, version,
+        );
+
+        let mut reader = Err(PackageError::Other(None));
+        for i in 0..*request_retry_count {
+            reader = self.make_get_request_async(&url).await;
+            match reader {
+                Err(_) => eprintln!("Failed fetching {url} (try {})", i + 1),
+                Ok(_) => break,
+            }
+        }
+
+        let mut d = GzDecoder::new(reader?);
+        let mut archive = Vec::new();
+        d.read_to_end(&mut archive)
+            .map_err(|error| PackageError::MalformedArchive(Some(eco_format!("{error}"))))?;
+
+        let archive = Archive::new(&archive[..]);
+        cache.cache_archive(archive, package)?;
+        cache
+            .lookup_cached(package, id)
+            .and_then(|f| f.ok_or_else(|| not_found(id)))
+    }
+
     #[cfg(feature = "ureq")]
     fn make_get_request(&self, url: &str) -> Result<ureq::BodyReader<'static>, PackageError> {
         let Self { ureq, .. } = self;
@@ -260,6 +346,31 @@ impl<C> PackageResolver<C> {
         }
         let bytes = resp
             .bytes()
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+        Ok(bytes.reader())
+    }
+
+    #[cfg(feature = "async-reqwest")]
+    async fn make_get_request_async(
+        &self,
+        url: &str,
+    ) -> Result<bytes::buf::Reader<bytes::Bytes>, PackageError> {
+        use bytes::Buf;
+
+        let Self { async_reqwest, .. } = self;
+        let resp = async_reqwest
+            .get(url)
+            .send().await
+            .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
+
+        let status = resp.status();
+        if status != 200 {
+            return Err(PackageError::NetworkFailed(Some(eco_format!(
+                "response returned unsuccessful status code {status}"
+            ))));
+        }
+        let bytes = resp
+            .bytes().await
             .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
         Ok(bytes.reader())
     }
