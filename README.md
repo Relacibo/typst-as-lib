@@ -113,7 +113,7 @@ let template = TypstEngine::builder()
 
 ### Remote packages
 
-The features `package` and one of `ureq` or `reqwest` need to be enabled.
+The features `packages` and one of `ureq` or `reqwest` need to be enabled.
 
 Can be enabled like this:
 
