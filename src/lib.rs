@@ -216,6 +216,15 @@ impl TypstEngine<TypstTemplateMainFile> {
         let TypstTemplateMainFile { source_id } = self.template;
         self.do_compile(source_id, None)
     }
+
+    #[cfg(feature = "async-reqwest")]
+    pub async fn compile_async<Doc>(&self) -> Warned<Result<Doc, TypstAsLibError>>
+    where
+        Doc: Document,
+    {
+        let TypstTemplateMainFile { source_id } = self.template;
+        self.do_compile(source_id, None)
+    }
 }
 
 pub struct TypstTemplateEngineBuilder<T = TypstTemplateCollection> {
