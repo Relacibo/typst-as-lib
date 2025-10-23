@@ -151,8 +151,10 @@ impl<C> PackageResolverBuilder<C> {
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C = ()> {
     #[cfg(feature = "ureq")]
+    #[allow(dead_code)]
     ureq: ureq::Agent,
     #[cfg(feature = "reqwest")]
+    #[allow(dead_code)]
     reqwest: reqwest::blocking::Client,
     cache: C,
     request_retry_count: u32,
