@@ -144,7 +144,8 @@ impl TypstEngine<TypstTemplateCollection> {
     ///
     /// Example:
     ///
-    /// ```rust
+    /// ```rust,ignore
+    /// # use typst_as_lib::TypstEngine;
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
     /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
     /// static TEMPLATE_ID: &str = "/template.typ";
@@ -186,7 +187,8 @@ impl TypstEngine<TypstTemplateMainFile> {
     ///
     /// Example:
     ///
-    /// ```rust
+    /// ```rust,ignore
+    /// # use typst_as_lib::TypstEngine;
     /// static TEMPLATE: &str = include_str!("./templates/template.typ");
     /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
     /// static TEMPLATE_ID: &str = "/template.typ";
@@ -309,12 +311,11 @@ impl<T> TypstTemplateEngineBuilder<T> {
     }
 
     /// Use typst_kit::fonts::FontSearcher when looking up fonts
-    /// ```rust
-    /// // ...
-    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
     /// let template = TypstEngine::builder()
     ///     .search_fonts_with(Default::default())
-    ///     .with_static_file_resolver([TEMPLATE], [])
+    ///     .with_static_file_resolver([("template.typ", &b""[..])])
     ///     .build();
     /// ```
     #[cfg(feature = "typst-kit-fonts")]
@@ -381,9 +382,11 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// When `package` is set in `FileId`, it will download the package from the typst package
     /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).
     /// Example
-    /// ```rust
-    ///     let template = TypstTemplateCollection::new(vec![font])
-    ///         .with_package_file_resolver(None);
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// let template = TypstEngine::builder()
+    ///     .with_package_file_resolver()
+    ///     .build();
     /// ```
     pub fn with_package_file_resolver(self) -> Self {
         use package_resolver::PackageResolver;

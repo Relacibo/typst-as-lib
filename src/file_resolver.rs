@@ -21,8 +21,8 @@ use crate::{
 pub const DEFAULT_PACKAGES_SUBDIR: &str = "typst/packages";
 
 pub trait FileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>>;
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>>;
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>>;
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>>;
 }
 
 #[derive(Debug, Clone)]
@@ -37,11 +37,11 @@ impl MainSourceFileResolver {
 }
 
 impl FileResolver for MainSourceFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         Err(not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         let Self { main_source } = self;
         if id == main_source.id() {
             return Ok(Cow::Borrowed(main_source));
@@ -73,11 +73,11 @@ impl StaticSourceFileResolver {
 }
 
 impl FileResolver for StaticSourceFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         Err(not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         self.sources
             .get(&id)
             .map(Cow::Borrowed)
@@ -106,14 +106,14 @@ impl StaticFileResolver {
 }
 
 impl FileResolver for StaticFileResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         self.binaries
             .get(&id)
             .map(Cow::Borrowed)
             .ok_or_else(|| not_found(id))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         Err(not_found(id))
     }
 }
@@ -196,12 +196,12 @@ impl IntoCachedFileResolver for FileSystemResolver {
 }
 
 impl FileResolver for FileSystemResolver {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         let b = self.resolve_bytes(id)?;
         Ok(Cow::Owned(Bytes::new(b)))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         let file = self.resolve_bytes(id)?;
         let source = bytes_to_source(id, &file)?;
         Ok(Cow::Owned(source))

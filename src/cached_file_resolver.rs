@@ -46,7 +46,7 @@ impl<T> FileResolver for CachedFileResolver<T>
 where
     T: FileResolver,
 {
-    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<Bytes>> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
         let Self {
             in_memory_binary_cache,
             ..
@@ -68,7 +68,7 @@ where
         Ok(resolved)
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         let Self {
             in_memory_source_cache,
             ..

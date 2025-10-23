@@ -274,7 +274,7 @@ where
         Ok(Cow::Owned(cached))
     }
 
-    fn resolve_source(&self, id: FileId) -> FileResult<Cow<Source>> {
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
         let cached: Source = self.resolve_bytes(id)?;
         Ok(Cow::Owned(cached))
     }
