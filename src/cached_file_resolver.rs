@@ -52,18 +52,17 @@ where
             ..
         } = self;
 
-        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
-            if let Ok(in_memory_binary_cache) = in_memory_binary_cache.lock() {
-                if let Some(cached) = in_memory_binary_cache.get(&id) {
-                    return Ok(Cow::Owned(cached.clone()));
-                }
-            }
+        if let Some(in_memory_binary_cache) = in_memory_binary_cache
+            && let Ok(in_memory_binary_cache) = in_memory_binary_cache.lock()
+            && let Some(cached) = in_memory_binary_cache.get(&id)
+        {
+            return Ok(Cow::Owned(cached.clone()));
         }
         let resolved = self.file_resolver.resolve_binary(id)?;
-        if let Some(in_memory_binary_cache) = in_memory_binary_cache {
-            if let Ok(mut in_memory_binary_cache) = in_memory_binary_cache.lock() {
-                in_memory_binary_cache.insert(id, resolved.as_ref().clone());
-            }
+        if let Some(in_memory_binary_cache) = in_memory_binary_cache
+            && let Ok(mut in_memory_binary_cache) = in_memory_binary_cache.lock()
+        {
+            in_memory_binary_cache.insert(id, resolved.as_ref().clone());
         }
         Ok(resolved)
     }
@@ -74,18 +73,17 @@ where
             ..
         } = self;
 
-        if let Some(in_memory_source_cache) = in_memory_source_cache {
-            if let Ok(in_memory_source_cache) = in_memory_source_cache.lock() {
-                if let Some(cached) = in_memory_source_cache.get(&id) {
-                    return Ok(Cow::Owned(cached.clone()));
-                }
-            }
+        if let Some(in_memory_source_cache) = in_memory_source_cache
+            && let Ok(in_memory_source_cache) = in_memory_source_cache.lock()
+            && let Some(cached) = in_memory_source_cache.get(&id)
+        {
+            return Ok(Cow::Owned(cached.clone()));
         }
         let resolved = self.file_resolver.resolve_source(id)?;
-        if let Some(in_memory_source_cache) = in_memory_source_cache {
-            if let Ok(mut in_memory_source_cache) = in_memory_source_cache.lock() {
-                in_memory_source_cache.insert(id, resolved.as_ref().clone());
-            }
+        if let Some(in_memory_source_cache) = in_memory_source_cache
+            && let Ok(mut in_memory_source_cache) = in_memory_source_cache.lock()
+        {
+            in_memory_source_cache.insert(id, resolved.as_ref().clone());
         }
         Ok(resolved)
     }
