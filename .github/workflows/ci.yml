@@ -172,10 +172,10 @@ jobs:
 
       - name: Update typst to latest
         run: |
-          cargo update -p typst
-          cargo update -p typst-pdf
-          cargo update -p typst-html
-          cargo update -p typst-kit
+          # Update all dependencies to latest compatible versions
+          cargo update
+          # Try to update to latest typst (may fail if incompatible, that's ok)
+          cargo update --aggressive || true
 
       - name: Check if build works with latest typst
         run: cargo check --all-features
