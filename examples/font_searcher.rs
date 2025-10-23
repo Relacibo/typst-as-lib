@@ -1,4 +1,4 @@
-use typst_as_lib::{typst_kit_options::TypstKitFontOptions, TypstEngine};
+use typst_as_lib::{TypstEngine, typst_kit_options::TypstKitFontOptions};
 static TEMPLATE_FILE: &str = include_str!("./templates/font_searcher.typ");
 static OUTPUT: &str = "./examples/output.pdf";
 
