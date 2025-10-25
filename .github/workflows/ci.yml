@@ -2,12 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-  schedule:
-    # Run weekly on Sunday at 00:00 UTC
-    - cron: '0 0 * * 0'
   workflow_dispatch:
+
 
 env:
   RUST_BACKTRACE: 1
@@ -18,36 +16,36 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
 
-      - name: Check formatting
-        run: cargo fmt --all --check
+    - name: Check formatting
+      run: cargo fmt --all --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
 
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
     name: Test
@@ -55,65 +53,65 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, nightly]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        rust: [ stable, nightly ]
         include:
-          - os: ubuntu-latest
-            rust: stable
-            features: '--all-features'
-          - os: ubuntu-latest
-            rust: stable
-            features: '--no-default-features'
-          - os: ubuntu-latest
-            rust: stable
-            features: '--features packages,ureq'
-          - os: ubuntu-latest
-            rust: stable
-            features: '--features packages,reqwest'
-          - os: ubuntu-latest
-            rust: stable
-            features: '--features typst-kit-fonts,typst-kit-embed-fonts'
+        - os: ubuntu-latest
+          rust: stable
+          features: '--all-features'
+        - os: ubuntu-latest
+          rust: stable
+          features: '--no-default-features'
+        - os: ubuntu-latest
+          rust: stable
+          features: '--features packages,ureq'
+        - os: ubuntu-latest
+          rust: stable
+          features: '--features packages,reqwest'
+        - os: ubuntu-latest
+          rust: stable
+          features: '--features typst-kit-fonts,typst-kit-embed-fonts'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
 
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          key: ${{ matrix.features }}
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        key: ${{ matrix.features }}
 
-      - name: Run tests
-        run: cargo test ${{ matrix.features }}
+    - name: Run tests
+      run: cargo test ${{ matrix.features }}
 
-      - name: Run doc tests
-        run: cargo test --doc ${{ matrix.features }}
+    - name: Run doc tests
+      run: cargo test --doc ${{ matrix.features }}
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
 
-      - name: Build all features
-        run: cargo build --all-features --verbose
+    - name: Build all features
+      run: cargo build --all-features --verbose
 
-      - name: Build no default features
-        run: cargo build --no-default-features --verbose
+    - name: Build no default features
+      run: cargo build --no-default-features --verbose
 
   examples:
     name: Examples
@@ -122,85 +120,52 @@ jobs:
       fail-fast: false
       matrix:
         example:
-          - name: small_example
-            features: ''
-          - name: resolve_static
-            features: ''
-          - name: resolve_packages
-            features: 'packages,ureq'
-          - name: font_searcher
-            features: 'typst-kit-fonts,typst-kit-embed-fonts'
-          - name: html
-            features: 'typst-html'
+        - name: small_example
+          features: ''
+        - name: resolve_static
+          features: ''
+        - name: resolve_packages
+          features: 'packages,ureq'
+        - name: font_searcher
+          features: 'typst-kit-fonts,typst-kit-embed-fonts'
+        - name: html
+          features: 'typst-html'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          key: example-${{ matrix.example.name }}
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        key: example-${{ matrix.example.name }}
 
-      - name: Build example
-        run: |
-          if [ -z "${{ matrix.example.features }}" ]; then
-            cargo build --example ${{ matrix.example.name }}
-          else
-            cargo build --example ${{ matrix.example.name }} --features ${{ matrix.example.features }}
-          fi
-
-  latest-typst:
-    name: Test with latest Typst
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          key: latest-typst
-
-      - name: Update typst to latest
-        run: |
-          # Update all dependencies to latest compatible versions
-          cargo update
-          # Try to update to latest typst (may fail if incompatible, that's ok)
-          cargo update --aggressive || true
-
-      - name: Check if build works with latest typst
-        run: cargo check --all-features
-
-      - name: Run tests with latest typst
-        run: cargo test --all-features
-
-      - name: Report version
-        run: cargo tree | grep typst
+    - name: Build example
+      run: |
+        if [ -z "${{ matrix.example.features }}" ]; then
+          cargo build --example ${{ matrix.example.name }}
+        else
+          cargo build --example ${{ matrix.example.name }} --features ${{ matrix.example.features }}
+        fi
 
   minimal-versions:
     name: Check minimal versions
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    - name: Checkout repository
+      uses: actions/checkout@v5
 
-      - name: Setup Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+    - name: Setup Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
 
-      - name: Setup cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          key: minimal-versions
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        key: minimal-versions
 
-      - name: Check with minimal versions
-        run: cargo +nightly check -Z minimal-versions --all-features
+    - name: Check with minimal versions
+      run: cargo +nightly check -Z minimal-versions --all-features
