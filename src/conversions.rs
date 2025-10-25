@@ -1,6 +1,6 @@
 use typst::{
     foundations::Bytes,
-    syntax::{package::PackageSpec, FileId, Source, VirtualPath},
+    syntax::{FileId, Source, VirtualPath, package::PackageSpec},
     text::Font,
 };
 
