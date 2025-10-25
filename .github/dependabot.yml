@@ -1,0 +1,27 @@
+version: 2
+updates:
+# Cargo dependencies
+- package-ecosystem: "cargo"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+    day: "sunday"
+  groups:
+    typst:
+      patterns:
+      - "typst*"
+  labels:
+  - "dependencies"
+  - "rust"
+  open-pull-requests-limit: 10
+
+# GitHub Actions
+- package-ecosystem: "github-actions"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+    day: "sunday"
+  labels:
+  - "dependencies"
+  - "github-actions"
+  open-pull-requests-limit: 5
