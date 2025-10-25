@@ -1,0 +1,54 @@
+name: Weekly Typst Compatibility Check
+
+on:
+  schedule:
+  # Run weekly on Sunday at 00:00 UTC
+  - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  latest-typst:
+    name: Test with latest Typst
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+        key: latest-typst
+
+    - name: Update typst to latest
+      run: |
+        # Update all dependencies to latest compatible versions
+        cargo update
+
+    - name: Show updated versions
+      run: |
+        echo "Testing with these typst versions:"
+        cargo metadata --format-version 1 | jq -r '.packages[] | select(.name | startswith("typst")) | "\(.name) \(.version)"'
+
+    - name: Check if build works with latest typst
+      run: cargo check --all-features
+
+    - name: Run tests with latest typst
+      run: cargo test --all-features
+
+    - name: Build examples
+      run: |
+        cargo build --example small_example
+        cargo build --example resolve_static
+        cargo build --example resolve_packages --features packages,ureq
+        cargo build --example font_searcher --features typst-kit-fonts,typst-kit-embed-fonts
+        cargo build --example html --features typst-html
