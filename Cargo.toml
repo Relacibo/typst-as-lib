@@ -32,7 +32,7 @@ reqwest = { version = "0.12", features = ["blocking"], optional = true }
 bytes = { version = "1.10", optional = true }
 
 [dev-dependencies]
-derive_typst_intoval = "0.3.0"
+derive_typst_intoval = "0.5.0"
 typst-pdf = "0.14.0"
 typst-html = "0.14.0"
 typst = "0.14.0"

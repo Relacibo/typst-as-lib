@@ -2,7 +2,7 @@
 
 ## [0.14.4] - 2025-10-25
 
-- Update typst version to 0.14
+- Update dependencies
 
 ## [0.14.4] - 2025-06-13
 
