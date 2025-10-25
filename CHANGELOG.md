@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.14.4] - 2025-10-25
+
+- Update typst version to 0.14
+
 ## [0.14.4] - 2025-06-13
 
 - More informative typst errors (https://github.com/Relacibo/typst-as-lib/pull/13 by niusia-ua)
