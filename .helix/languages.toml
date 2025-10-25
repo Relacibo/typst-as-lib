@@ -1,0 +1,6 @@
+[[language]]
+name = "rust"
+language-servers = ["rust-analyzer"]
+
+[language-server.rust-analyzer.config]
+check.command = "clippy"
