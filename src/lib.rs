@@ -17,7 +17,7 @@ use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::syntax::{FileId, Source};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::{Document, Library};
+use typst::{Document, Library, LibraryExt};
 use util::not_found;
 
 pub mod cached_file_resolver;
@@ -449,7 +449,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
         }
 
         #[cfg(not(feature = "typst-html"))]
-        let library = Default::default();
+        let library = <Library as LibraryExt>::default();
 
         #[cfg(feature = "typst-html")]
         let library = typst::Library::builder()
