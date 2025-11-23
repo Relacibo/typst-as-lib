@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -73,7 +73,7 @@ jobs:
           features: '--features typst-kit-fonts,typst-kit-embed-fonts'
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@master
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -132,7 +132,7 @@ jobs:
           features: 'typst-html'
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -156,7 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust nightly
       uses: dtolnay/rust-toolchain@nightly
