@@ -162,6 +162,54 @@ let template = TypstEngine::build()
 
 Note that the Cache Wrapper created with the call to `into_cached(self)` only caches the `Source` files (each single file lazily) here and the `InMemoryCache` caches all binaries (eagerly after the first download of the whole package, which is triggered (lazily), when requested in a typst script).
 
+### Automatic Package Bundling
+
+The `package-bundling` feature automatically downloads and embeds Typst packages at build time.
+
+The features `package-bundling` and one of `ureq` or `reqwest` need to be enabled.
+
+Configure the template directory in your `Cargo.toml`:
+
+```toml
+[package.metadata.typst-as-lib]
+template-dir = "./templates"
+
+[dependencies]
+typst-as-lib = { version = "0.15", features = ["package-bundling", "ureq"] }
+```
+
+Then use it in your code:
+
+```rust
+let engine = TypstEngine::builder()
+    .main_file(TEMPLATE_FILE)
+    .fonts([FONT])
+    .with_bundled_packages()
+    .build();
+```
+
+Alternatively, instead of using Cargo.toml metadata, you can set an environment variable (useful for CI/CD):
+
+```bash
+export TYPST_TEMPLATE_DIR=./templates
+cargo build
+```
+
+Or use `.cargo/config.toml`:
+
+```toml
+[env]
+TYPST_TEMPLATE_DIR = "./templates"
+```
+
+This approach has zero runtime dependencies - no filesystem or internet access is needed at runtime. The binary works in completely offline environments. Transitive dependencies are automatically resolved and embedded.
+
+See [auto_packages example](https://github.com/Relacibo/typst-as-lib/blob/main/examples/auto_packages.rs).
+
+```bash
+cargo r --example=auto_packages --features=package-bundling,ureq
+```
+
 ### Local files and remote packages example
 
 See example [resolve_packages](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs) which uses the file and the package resolver.

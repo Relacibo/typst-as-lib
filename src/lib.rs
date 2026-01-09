@@ -28,6 +28,9 @@ pub(crate) mod util;
 #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
 pub mod package_resolver;
 
+#[cfg(feature = "package-bundling")]
+pub mod embedded_package_resolver;
+
 #[cfg(feature = "typst-kit-fonts")]
 pub mod typst_kit_options;
 
@@ -395,6 +398,50 @@ impl<T> TypstTemplateEngineBuilder<T> {
             .build()
             .into_cached();
         self.add_file_resolver(file_resolver)
+    }
+
+    /// Use automatically bundled packages (requires `package-bundling` feature).
+    ///
+    /// Packages referenced in templates are automatically detected at build time,
+    /// downloaded, and embedded into the binary for zero-overhead runtime resolution.
+    ///
+    /// # Setup
+    ///
+    /// Set the template directory before building:
+    /// ```bash
+    /// export TYPST_TEMPLATE_DIR=./templates
+    /// cargo build --features package-bundling,ureq
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(template)
+    ///     .fonts([font])
+    ///     .with_bundled_packages()  // Use embedded packages
+    ///     .build();
+    /// ```
+    ///
+    /// # How it Works
+    ///
+    /// 1. **Build time**: build.rs scans `.typ` files for `@namespace/name:version` imports
+    /// 2. **Download**: Packages are downloaded from typst.org (cached for subsequent builds)
+    /// 3. **Embed**: `include_dir!` macro embeds the entire directory at compile time
+    /// 4. **Runtime**: Packages are served from static binary data with no filesystem access
+    ///
+    /// # Trade-offs
+    ///
+    /// - ✅ Automatic dependency management
+    /// - ✅ Zero runtime dependencies (works offline)
+    /// - ✅ Fast package loading (direct memory access)
+    /// - ⚠️ Requires internet at build time (packages are cached)
+    /// - ⚠️ Increases binary size
+    #[cfg(feature = "package-bundling")]
+    pub fn with_bundled_packages(self) -> Self {
+        use embedded_package_resolver::EmbeddedPackageResolver;
+        let resolver = EmbeddedPackageResolver::new();
+        self.add_file_resolver(resolver)
     }
 
     pub fn build(self) -> TypstEngine<T> {
