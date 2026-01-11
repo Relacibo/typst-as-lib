@@ -113,17 +113,25 @@ impl<T> TypstEngine<T> {
         };
         {
             let global = lib.global.scope_mut();
-            let mut scope = Scope::new();
-            scope.define(value_name, input.into());
-            if let Some(value) = global.get_mut(module_name) {
-                let value = value.write().map_err(TypstAsLibError::Unspecified)?;
-                if let Value::Module(module) = value {
-                    *module.scope_mut() = scope;
+            let input_dict: Dict = input.into();
+            if let Some(module_value) = global.get_mut(module_name) {
+                let module_value = module_value.write().map_err(TypstAsLibError::Unspecified)?;
+                if let Value::Module(module) = module_value {
+                    let scope = module.scope_mut();
+                    if let Some(target) = scope.get_mut(value_name) {
+                        *target.write()? = Value::Dict(input_dict);
+                    } else {
+                        scope.define(value_name, input_dict);
+                    }
                 } else {
+                    let mut scope = Scope::deduplicating();
+                    scope.define(value_name, input_dict);
                     let module = Module::new(module_name, scope);
-                    *value = Value::Module(module);
+                    *module_value = Value::Module(module);
                 }
             } else {
+                let mut scope = Scope::deduplicating();
+                scope.define(value_name, input_dict);
                 let module = Module::new(module_name, scope);
                 global.define(module_name, module);
             }
@@ -557,6 +565,12 @@ pub enum TypstAsLibError {
 impl From<HintedString> for TypstAsLibError {
     fn from(value: HintedString) -> Self {
         TypstAsLibError::HintedString(value)
+    }
+}
+
+impl From<ecow::EcoString> for TypstAsLibError {
+    fn from(value: ecow::EcoString) -> Self {
+        TypstAsLibError::Unspecified(value)
     }
 }
 
