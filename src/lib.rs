@@ -115,21 +115,25 @@ impl<T> TypstEngine<T> {
             let global = lib.global.scope_mut();
             let input_dict: Dict = input.into();
             if let Some(module_value) = global.get_mut(module_name) {
-                let module_value = module_value.write().map_err(TypstAsLibError::Unspecified)?;
+                let module_value = module_value.write()?;
                 if let Value::Module(module) = module_value {
                     let scope = module.scope_mut();
                     if let Some(target) = scope.get_mut(value_name) {
+                        // Override existing field
                         *target.write()? = Value::Dict(input_dict);
                     } else {
+                        // Write new field into existing module scope
                         scope.define(value_name, input_dict);
                     }
                 } else {
+                    // Override existing non module value
                     let mut scope = Scope::deduplicating();
                     scope.define(value_name, input_dict);
                     let module = Module::new(module_name, scope);
                     *module_value = Value::Module(module);
                 }
             } else {
+                // Create new module and field
                 let mut scope = Scope::deduplicating();
                 scope.define(value_name, input_dict);
                 let module = Module::new(module_name, scope);
