@@ -205,3 +205,7 @@ The `TypstEngine::main_file` call is not needed, it's just for convenience. You 
 ## Maybe useful
 
 - [https://github.com/KillTheMule/derive_typst_intoval](https://github.com/KillTheMule/derive_typst_intoval)
+
+## Related projects
+
+- [typst-bake](https://github.com/elgar328/typst-bake) - A very new library that uses typst-as-lib to automatically bake Typst templates, fonts, and packages into your Rust binary at compile time, creating a fully self-contained PDF generation engine with zero Typst-related runtime dependencies. Note: This library is in early development and the API may still be unstable. (typst-as-lib can also be used for self-contained binaries by [manually embedding resources](#binaries-and-sources))
