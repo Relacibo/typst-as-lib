@@ -198,6 +198,10 @@ The `TypstEngine::main_file` call is not needed, it's just for convenience. You 
 - Support multiple typst versions with feature flags
 - Support typst feature to embed files
 
+## Notice
+
+**Documentation only**: The in-code documentation (doc comments) was generated with assistance from AI (GitHub Copilot). The actual implementation code is handwritten.
+
 ## Previous work
 
 - [https://github.com/tfachmann/typst-as-library](https://github.com/tfachmann/typst-as-library)
