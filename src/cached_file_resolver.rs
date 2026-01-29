@@ -12,13 +12,18 @@ use typst::{
 
 use crate::file_resolver::FileResolver;
 
+/// Wraps a file resolver with in-memory caching.
 pub struct CachedFileResolver<T> {
+    /// The underlying file resolver.
     pub file_resolver: T,
+    /// Optional cache for source files.
     pub in_memory_source_cache: Option<Arc<Mutex<HashMap<FileId, Source>>>>,
+    /// Optional cache for binary files.
     pub in_memory_binary_cache: Option<Arc<Mutex<HashMap<FileId, Bytes>>>>,
 }
 
 impl<T> CachedFileResolver<T> {
+    /// Creates a new cached file resolver wrapping the given resolver.
     pub fn new(file_resolver: T) -> Self {
         CachedFileResolver {
             file_resolver,
@@ -27,6 +32,7 @@ impl<T> CachedFileResolver<T> {
         }
     }
 
+    /// Enables in-memory caching for source files.
     pub fn with_in_memory_source_cache(self) -> Self {
         Self {
             in_memory_source_cache: Some(Default::default()),
@@ -34,6 +40,7 @@ impl<T> CachedFileResolver<T> {
         }
     }
 
+    /// Enables in-memory caching for binary files.
     pub fn with_in_memory_binary_cache(self) -> Self {
         Self {
             in_memory_binary_cache: Some(Default::default()),
@@ -89,7 +96,9 @@ where
     }
 }
 
+/// Trait for converting a file resolver into a cached version.
 pub trait IntoCachedFileResolver {
+    /// Wraps this resolver with caching.
     fn into_cached(self) -> CachedFileResolver<Self>
     where
         Self: Sized;

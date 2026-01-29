@@ -1,4 +1,8 @@
-// Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
+#![warn(missing_docs)]
+//! Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
+//!
+//! See the [repository README](https://github.com/Relacibo/typst-as-lib) for usage examples.
+//! Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
 use std::borrow::Cow;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -20,17 +24,65 @@ use typst::utils::LazyHash;
 use typst::{Document, Library, LibraryExt};
 use util::not_found;
 
+/// Caching wrapper for file resolvers.
 pub mod cached_file_resolver;
+/// Type conversion traits for Typst types.
 pub mod conversions;
+/// File resolution for Typst sources and binaries.
 pub mod file_resolver;
 pub(crate) mod util;
 
 #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
+/// Package resolution and downloading from the Typst package repository.
 pub mod package_resolver;
 
 #[cfg(feature = "typst-kit-fonts")]
+/// Configuration options for `typst-kit` font searching.
 pub mod typst_kit_options;
 
+/// Main entry point for compiling Typst documents.
+///
+/// Use [`TypstEngine::builder()`] to construct an instance. You can optionally set a
+/// main file with [`main_file()`](TypstTemplateEngineBuilder::main_file), which allows
+/// compiling without specifying the file ID each time.
+///
+/// # Examples
+///
+/// With main file (compile without file ID):
+///
+/// ```rust,no_run
+/// # use typst_as_lib::TypstEngine;
+/// # use typst::layout::PagedDocument;
+/// static TEMPLATE: &str = "Hello World!";
+/// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+///
+/// let engine = TypstEngine::builder()
+///     .main_file(TEMPLATE)
+///     .fonts([FONT])
+///     .build();
+///
+/// // Compile the main file directly
+/// let doc: PagedDocument = engine.compile().output.expect("Compilation failed");
+/// ```
+///
+/// Without main file (must provide file ID):
+///
+/// ```rust,no_run
+/// # use typst_as_lib::TypstEngine;
+/// # use typst::layout::PagedDocument;
+/// static TEMPLATE: &str = "Hello World!";
+/// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+///
+/// let engine = TypstEngine::builder()
+///     .fonts([FONT])
+///     .with_static_source_file_resolver([("template.typ", TEMPLATE)])
+///     .build();
+///
+/// // Must specify file ID for each compile
+/// let doc: PagedDocument = engine.compile("template.typ").output.expect("Compilation failed");
+/// ```
+///
+/// See also: [Examples directory](https://github.com/Relacibo/typst-as-lib/tree/main/examples)
 pub struct TypstEngine<T = TypstTemplateCollection> {
     template: T,
     book: LazyHash<FontBook>,
@@ -41,9 +93,11 @@ pub struct TypstEngine<T = TypstTemplateCollection> {
     fonts: Vec<FontEnum>,
 }
 
+/// Type state indicating no main file is set.
 #[derive(Debug, Clone, Copy)]
 pub struct TypstTemplateCollection;
 
+/// Type state indicating a main file has been set.
 #[derive(Debug, Clone, Copy)]
 pub struct TypstTemplateMainFile {
     source_id: FileId,
@@ -145,31 +199,51 @@ impl<T> TypstEngine<T> {
 }
 
 impl TypstEngine<TypstTemplateCollection> {
+    /// Creates a new builder for configuring a [`TypstEngine`].
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .fonts([FONT])
+    ///     .build();
+    /// ```
     pub fn builder() -> TypstTemplateEngineBuilder {
         TypstTemplateEngineBuilder::default()
     }
 }
 
 impl TypstEngine<TypstTemplateCollection> {
-    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import sys: inputs`.
+    /// Compiles a Typst document with input data injected as `sys.inputs`.
     ///
-    /// Example:
+    /// The input will be available in Typst scripts via `#import sys: inputs`.
     ///
-    /// ```rust,ignore
+    /// # Example
+    ///
+    /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-    /// static TEMPLATE_ID: &str = "/template.typ";
-    /// // ...
-    /// let template_collection = TypstEngine::builder().fonts([FONT])
-    ///     .with_static_file_resolver([(TEMPLATE_ID, TEMPLATE)]).build();
-    /// // Struct that implements Into<Dict>.
-    /// let inputs = todo!();
-    /// let tracer = Default::default();
-    /// let doc = template_collection.compile_with_input(&mut tracer, TEMPLATE_ID, inputs)
-    ///     .expect("Typst error!");
+    /// # use typst::foundations::{Dict, IntoValue};
+    /// # use typst::layout::PagedDocument;
+    /// static TEMPLATE: &str = "#import sys: inputs\n#inputs.name";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .fonts([FONT])
+    ///     .with_static_source_file_resolver([("main.typ", TEMPLATE)])
+    ///     .build();
+    ///
+    /// let mut inputs = Dict::new();
+    /// inputs.insert("name".into(), "World".into_value());
+    ///
+    /// let doc: PagedDocument = engine.compile_with_input("main.typ", inputs)
+    ///     .output
+    ///     .expect("Compilation failed");
     /// ```
+    ///
+    /// See also: [resolve_static.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs)
     pub fn compile_with_input<F, D, Doc>(
         &self,
         main_source_id: F,
@@ -183,7 +257,7 @@ impl TypstEngine<TypstTemplateCollection> {
         self.do_compile(main_source_id.into_file_id(), Some(inputs.into()))
     }
 
-    /// Just call `typst::compile()`. Same as Self::compile_with_input but without the input
+    /// Compiles a Typst document without input data.
     pub fn compile<F, Doc>(&self, main_source_id: F) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: IntoFileId,
@@ -194,25 +268,33 @@ impl TypstEngine<TypstTemplateCollection> {
 }
 
 impl TypstEngine<TypstTemplateMainFile> {
-    /// Call `typst::compile()` with our template and a `Dict` as input, that will be availible
-    /// in a typst script with `#import sys: inputs`.
+    /// Compiles the main file with input data injected as `sys.inputs`.
     ///
-    /// Example:
+    /// The input will be available in Typst scripts via `#import sys: inputs`.
     ///
-    /// ```rust,ignore
+    /// # Example
+    ///
+    /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// static TEMPLATE: &str = include_str!("./templates/template.typ");
-    /// static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
-    /// static TEMPLATE_ID: &str = "/template.typ";
-    /// // ...
-    /// let template_collection = TypstEngine::builder()
-    ///     .main_file(TEMPLATE).fonts([FONT]).build();
-    /// // Struct that implements Into<Dict>.
-    /// let inputs = todo!();
-    /// let tracer = Default::default();
-    /// let doc = template_collection.compile_with_input(&mut tracer, TEMPLATE_ID, inputs)
-    ///     .expect("Typst error!");
+    /// # use typst::foundations::{Dict, IntoValue};
+    /// # use typst::layout::PagedDocument;
+    /// static TEMPLATE: &str = "#import sys: inputs\nHello #inputs.name!";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .build();
+    ///
+    /// let mut inputs = Dict::new();
+    /// inputs.insert("name".into(), "World".into_value());
+    ///
+    /// let doc: PagedDocument = engine.compile_with_input(inputs)
+    ///     .output
+    ///     .expect("Compilation failed");
     /// ```
+    ///
+    /// See also: [small_example.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/small_example.rs)
     pub fn compile_with_input<D, Doc>(&self, inputs: D) -> Warned<Result<Doc, TypstAsLibError>>
     where
         D: Into<Dict>,
@@ -222,7 +304,7 @@ impl TypstEngine<TypstTemplateMainFile> {
         self.do_compile(source_id, Some(inputs.into()))
     }
 
-    /// Just call `typst::compile()`. Same as Self::compile_with_input but without the input
+    /// Compiles the main file without input data.
     pub fn compile<Doc>(&self) -> Warned<Result<Doc, TypstAsLibError>>
     where
         Doc: Document,
@@ -232,6 +314,7 @@ impl TypstEngine<TypstTemplateMainFile> {
     }
 }
 
+/// Builder for constructing a [`TypstEngine`].
 pub struct TypstTemplateEngineBuilder<T = TypstTemplateCollection> {
     template: T,
     inject_location: Option<InjectLocation>,
@@ -257,7 +340,27 @@ impl Default for TypstTemplateEngineBuilder {
 }
 
 impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
-    /// Declare a main_file that is used for each compilation as a starting point. This is optional.
+    /// Sets the main file for compilation.
+    ///
+    /// This is optional. If not set, you must provide a file ID on each compile call.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// # use typst::layout::PagedDocument;
+    /// static TEMPLATE: &str = "Hello World!";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .build();
+    ///
+    /// let doc: PagedDocument = engine.compile().output.expect("Compilation failed");
+    /// ```
+    ///
+    /// See also: [small_example.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/small_example.rs)
     pub fn main_file<S: IntoSource>(
         self,
         source: S,
@@ -288,9 +391,9 @@ impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
 }
 
 impl<T> TypstTemplateEngineBuilder<T> {
-    /// Use other typst location for injected inputs
-    /// (instead of`#import sys: inputs`, where `sys` is the `module_name`
-    /// and `inputs` is the `value_name`).
+    /// Customizes where input data is injected in the Typst environment.
+    ///
+    /// By default, inputs are available as `sys.inputs`.
     pub fn custom_inject_location(
         mut self,
         module_name: &'static str,
@@ -303,12 +406,20 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
-    /// Fonts
-    /// Accepts IntoIterator Items:
-    ///   - &[u8]
-    ///   - Vec<u8>
-    ///   - Bytes
-    ///   - Font
+    /// Adds fonts for rendering.
+    ///
+    /// Accepts font data as `&[u8]`, `Vec<u8>`, `Bytes`, or `Font`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .fonts([FONT])
+    ///     .build();
+    /// ```
     pub fn fonts<I, F>(mut self, fonts: I) -> Self
     where
         I: IntoIterator<Item = F>,
@@ -322,23 +433,30 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
-    /// Use typst_kit::fonts::FontSearcher when looking up fonts
+    /// Enables system font discovery using `typst-kit`.
+    ///
+    /// See [`typst_kit_options::TypstKitFontOptions`] for configuration.
+    ///
+    /// # Example
+    ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// let template = TypstEngine::builder()
-    ///     .search_fonts_with(Default::default())
-    ///     .with_static_file_resolver([("template.typ", &b""[..])])
+    /// # use typst_as_lib::typst_kit_options::TypstKitFontOptions;
+    /// let engine = TypstEngine::builder()
+    ///     .search_fonts_with(TypstKitFontOptions::default())
     ///     .build();
     /// ```
+    ///
+    /// See also: [font_searcher.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/font_searcher.rs)
     #[cfg(feature = "typst-kit-fonts")]
     pub fn search_fonts_with(mut self, options: typst_kit_options::TypstKitFontOptions) -> Self {
         self.typst_kit_font_options = Some(options);
         self
     }
 
-    /// Add file resolver, that implements the `FileResolver`` trait to a vec of file resolvers.
-    /// When a `FileId`` needs to be resolved by Typst, the vec will be iterated over until
-    /// one file resolver returns a file.
+    /// Adds a custom file resolver.
+    ///
+    /// Resolvers are tried in order until one successfully resolves the file.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
         F: FileResolver + Send + Sync + 'static,
@@ -347,16 +465,32 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
-    /// Adds the `StaticSourceFileResolver` to the file resolvers. It creates `HashMap`s for sources.
+    /// Adds static source files embedded in memory.
     ///
-    /// `sources` The item of the IntoIterator can be of types:
-    ///   - `&str/String`, creating a detached Source (Has vpath `/main.typ`)
-    ///   - `(&str, &str/String)`, where &str is the absolute
-    ///     virtual path of the Source file.
-    ///   - `(typst::syntax::FileId, &str/String)`
-    ///   - `typst::syntax::Source`
+    /// Accepts sources as `&str`, `String`, `(&str, &str)` (path, content),
+    /// `(FileId, &str)`, or `Source`.
     ///
-    /// (`&str/String` is always the template file content)
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// # use typst::layout::PagedDocument;
+    /// static MAIN: &str = "#import \"lib.typ\": greet\n#greet()";
+    /// static LIB: &str = "#let greet() = [Hello World!]";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .fonts([FONT])
+    ///     .with_static_source_file_resolver([
+    ///         ("main.typ", MAIN),
+    ///         ("lib.typ", LIB),
+    ///     ])
+    ///     .build();
+    ///
+    /// let doc: PagedDocument = engine.compile("main.typ").output.expect("Compilation failed");
+    /// ```
+    ///
+    /// See also: [resolve_static.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs)
     pub fn with_static_source_file_resolver<IS, S>(self, sources: IS) -> Self
     where
         IS: IntoIterator<Item = S>,
@@ -365,7 +499,24 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self.add_file_resolver(StaticSourceFileResolver::new(sources))
     }
 
-    /// Adds the `StaticFileResolver` to the file resolvers. It creates `HashMap`s for binaries.
+    /// Adds static binary files embedded in memory (e.g., images).
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// static TEMPLATE: &str = r#"#image("logo.png")"#;
+    /// static LOGO: &[u8] = include_bytes!("../examples/templates/images/typst.png");
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .with_static_file_resolver([("logo.png", LOGO)])
+    ///     .build();
+    /// ```
+    ///
+    /// See also: [resolve_static.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_static.rs)
     pub fn with_static_file_resolver<IB, F, B>(self, binaries: IB) -> Self
     where
         IB: IntoIterator<Item = (F, B)>,
@@ -375,8 +526,25 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self.add_file_resolver(StaticFileResolver::new(binaries))
     }
 
-    /// Adds `FileSystemResolver` to the file resolvers, a resolver that can resolve
-    /// local files (when `package` is not set in `FileId`).
+    /// Enables loading files from the file system.
+    ///
+    /// Files are resolved relative to `root`. Files outside of `root` cannot be accessed.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::TypstEngine;
+    /// static TEMPLATE: &str = r#"#include "header.typ""#;
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .with_file_system_resolver("./templates")
+    ///     .build();
+    /// ```
+    ///
+    /// See also: [resolve_packages.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs)
     pub fn with_file_system_resolver<P>(self, root: P) -> Self
     where
         P: Into<PathBuf>,
@@ -384,22 +552,34 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self.add_file_resolver(FileSystemResolver::new(root.into()).into_cached())
     }
 
+    /// Sets the maximum age for comemo cache eviction after compilation.
+    ///
+    /// Default is `Some(0)`, which evicts after each compilation.
     pub fn comemo_evict_max_age(&mut self, comemo_evict_max_age: Option<usize>) -> &mut Self {
         self.comemo_evict_max_age = comemo_evict_max_age;
         self
     }
 
-    #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
-    /// Adds `PackageResolver` to the file resolvers.
-    /// When `package` is set in `FileId`, it will download the package from the typst package
-    /// repository. It caches the results into `cache` (which is either in memory or cache folder (default)).
-    /// Example
+    /// Enables downloading packages from the Typst package repository.
+    ///
+    /// Packages are cached on the file system for reuse.
+    ///
+    /// # Example
+    ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// let template = TypstEngine::builder()
+    /// static TEMPLATE: &str = r#"#import "@preview/example:0.1.0": *"#;
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
     ///     .with_package_file_resolver()
     ///     .build();
     /// ```
+    ///
+    /// See also: [resolve_packages.rs](https://github.com/Relacibo/typst-as-lib/blob/main/examples/resolve_packages.rs)
+    #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
     pub fn with_package_file_resolver(self) -> Self {
         use package_resolver::PackageResolver;
         let file_resolver = PackageResolver::builder()
@@ -409,6 +589,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self.add_file_resolver(file_resolver)
     }
 
+    /// Builds the [`TypstEngine`] with the configured options.
     pub fn build(self) -> TypstEngine<T> {
         let TypstTemplateEngineBuilder {
             template,
@@ -552,16 +733,22 @@ struct InjectLocation {
     value_name: &'static str,
 }
 
+/// Errors that can occur when using typst-as-lib.
 #[derive(Debug, Clone, Error)]
 pub enum TypstAsLibError {
+    /// Errors from Typst source compilation.
     #[error("Typst source error: {0:?}")]
     TypstSource(EcoVec<SourceDiagnostic>),
+    /// Errors from file operations.
     #[error("Typst file error: {0}")]
     TypstFile(#[from] FileError),
+    /// The specified main source file was not found.
     #[error("Source file does not exist in collection: {0:?}")]
     MainSourceFileDoesNotExist(FileId),
+    /// Errors with additional hints from Typst.
     #[error("Typst hinted String: {0:?}")]
     HintedString(HintedString),
+    /// Other unspecified errors.
     #[error("Unspecified: {0}!")]
     Unspecified(ecow::EcoString),
 }
@@ -584,14 +771,18 @@ impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
     }
 }
 
+/// Wrapper for different font types.
 #[derive(Debug)]
 pub enum FontEnum {
+    /// A directly loaded font.
     Font(Font),
+    /// A lazy font slot from typst-kit.
     #[cfg(feature = "typst-kit-fonts")]
     FontSlot(typst_kit::fonts::FontSlot),
 }
 
 impl FontEnum {
+    /// Retrieves the font, loading it if necessary.
     pub fn get(&self) -> Option<Font> {
         match self {
             FontEnum::Font(font) => Some(font.clone()),

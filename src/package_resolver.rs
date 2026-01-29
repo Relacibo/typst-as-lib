@@ -27,6 +27,7 @@ static PACKAGE_REPOSITORY_URL: &str = "https://packages.typst.org";
 
 static REQUEST_RETRY_COUNT: u32 = 3;
 
+/// Builder for constructing a [`PackageResolver`].
 #[derive(Debug, Clone, Default)]
 pub struct PackageResolverBuilder<C = ()> {
     #[cfg(feature = "ureq")]
@@ -38,11 +39,13 @@ pub struct PackageResolverBuilder<C = ()> {
 }
 
 impl PackageResolverBuilder<()> {
+    /// Creates a new builder.
     #[deprecated(since = "0.14.0", note = "Use `PackageResolver::builder()` instead")]
     pub fn new() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
     }
 
+    /// Creates a new builder.
     #[deprecated(since = "0.14.1", note = "Use `PackageResolver::builder()` instead")]
     pub fn builder() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
@@ -50,11 +53,13 @@ impl PackageResolverBuilder<()> {
 }
 
 impl<C> PackageResolverBuilder<C> {
+    /// Sets the number of retry attempts for failed HTTP requests.
     pub fn request_retry_count(mut self, request_retry_count: u32) -> Self {
         self.request_retry_count = Some(request_retry_count);
         self
     }
 
+    /// Sets a custom `ureq` HTTP client.
     #[cfg(feature = "ureq")]
     pub fn ureq_agent(self, ureq: ureq::Agent) -> Self {
         Self {
@@ -63,6 +68,7 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    /// Sets a custom `reqwest` HTTP client.
     #[cfg(feature = "reqwest")]
     pub fn reqwest_client(self, reqwest: reqwest::blocking::Client) -> Self {
         Self {
@@ -71,6 +77,7 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    /// Sets a custom cache implementation.
     pub fn cache<C1>(self, cache: C1) -> PackageResolverBuilder<C1> {
         let Self {
             request_retry_count,
@@ -90,6 +97,16 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    /// Uses the file system for caching packages.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::package_resolver::PackageResolver;
+    /// let resolver = PackageResolver::builder()
+    ///     .with_file_system_cache()
+    ///     .build();
+    /// ```
     pub fn with_file_system_cache(self) -> PackageResolverBuilder<FileSystemCache> {
         let Self {
             request_retry_count,
@@ -109,6 +126,16 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    /// Uses in-memory caching for packages.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::package_resolver::PackageResolver;
+    /// let resolver = PackageResolver::builder()
+    ///     .with_in_memory_cache()
+    ///     .build();
+    /// ```
     pub fn with_in_memory_cache(self) -> PackageResolverBuilder<InMemoryCache> {
         let Self {
             request_retry_count,
@@ -128,6 +155,7 @@ impl<C> PackageResolverBuilder<C> {
         }
     }
 
+    /// Builds the package resolver with the configured options.
     pub fn build(self) -> PackageResolver<C> {
         let Self {
             request_retry_count,
@@ -148,6 +176,7 @@ impl<C> PackageResolverBuilder<C> {
     }
 }
 
+/// Resolves and downloads packages from the Typst package repository.
 #[derive(Debug, Clone)]
 pub struct PackageResolver<C = ()> {
     #[cfg(feature = "ureq")]
@@ -161,6 +190,16 @@ pub struct PackageResolver<C = ()> {
 }
 
 impl PackageResolver {
+    /// Creates a new builder for configuring a package resolver.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::package_resolver::PackageResolver;
+    /// let resolver = PackageResolver::builder()
+    ///     .with_file_system_cache()
+    ///     .build();
+    /// ```
     pub fn builder() -> PackageResolverBuilder<()> {
         PackageResolverBuilder::default()
     }
@@ -297,12 +336,14 @@ trait PackageResolverCache {
     fn cache_archive(&self, archive: Archive<&[u8]>, package: &PackageSpec) -> FileResult<()>;
 }
 
-/// File system cache with given path
-/// If content is None, then it uses <OS_CACHE_DIR>/typst/packages for caching.
+/// File system cache for downloaded packages.
+///
+/// Uses the OS cache directory by default.
 #[derive(Debug, Clone)]
 pub struct FileSystemCache(pub PathBuf);
 
 impl FileSystemCache {
+    /// Creates a new file system cache with the default cache directory.
     pub fn new() -> Self {
         Self::default()
     }
@@ -345,11 +386,12 @@ impl PackageResolverCache for FileSystemCache {
     }
 }
 
-/// In memory cache
+/// In-memory cache for downloaded packages.
 #[derive(Debug, Clone, Default)]
 pub struct InMemoryCache(pub Arc<Mutex<HashMap<FileId, Vec<u8>>>>);
 
 impl InMemoryCache {
+    /// Creates a new in-memory cache.
     pub fn new() -> Self {
         Self::default()
     }

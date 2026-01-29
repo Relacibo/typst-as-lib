@@ -4,7 +4,9 @@ use typst::{
     text::Font,
 };
 
+/// Converts types into a Typst [`FileId`].
 pub trait IntoFileId {
+    /// Converts into a file ID.
     fn into_file_id(self) -> FileId
     where
         Self: std::marker::Sized;
@@ -29,7 +31,9 @@ impl IntoFileId for (PackageSpec, &str) {
     }
 }
 
+/// Converts types into a Typst [`Source`].
 pub trait IntoSource {
+    /// Converts into a source file.
     fn into_source(self) -> Source
     where
         Self: std::marker::Sized;
@@ -82,7 +86,9 @@ impl IntoSource for &str {
     }
 }
 
+/// Converts types into Typst [`Bytes`].
 pub trait IntoBytes {
+    /// Converts into bytes.
     fn into_bytes(self) -> Bytes
     where
         Self: std::marker::Sized;
@@ -106,10 +112,12 @@ impl IntoBytes for Bytes {
     }
 }
 
+/// Converts types into an iterator of Typst [`Font`]s.
 pub trait IntoFonts
 where
     Self: std::marker::Sized,
 {
+    /// Converts into an iterator of fonts.
     fn into_fonts(self) -> Box<dyn Iterator<Item = Font>>;
 }
 

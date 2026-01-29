@@ -20,8 +20,11 @@ use crate::{
 /// The default packages sub directory within the package and package cache paths.
 pub const DEFAULT_PACKAGES_SUBDIR: &str = "typst/packages";
 
+/// Trait for resolving Typst files from various sources.
 pub trait FileResolver {
+    /// Resolves a binary file (e.g., images, fonts).
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>>;
+    /// Resolves a source file (e.g., `.typ` files).
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>>;
 }
 
@@ -50,6 +53,7 @@ impl FileResolver for MainSourceFileResolver {
     }
 }
 
+/// Resolves source files from a static in-memory map.
 #[derive(Debug, Clone)]
 pub struct StaticSourceFileResolver {
     sources: HashMap<FileId, Source>,
@@ -85,6 +89,7 @@ impl FileResolver for StaticSourceFileResolver {
     }
 }
 
+/// Resolves binary files from a static in-memory map.
 #[derive(Debug, Clone)]
 pub struct StaticFileResolver {
     binaries: HashMap<FileId, Bytes>,
@@ -118,6 +123,9 @@ impl FileResolver for StaticFileResolver {
     }
 }
 
+/// Resolves files from the file system.
+///
+/// Files are resolved relative to `root` and cannot escape it.
 #[derive(Debug, Clone)]
 pub struct FileSystemResolver {
     root: PathBuf,
@@ -125,6 +133,14 @@ pub struct FileSystemResolver {
 }
 
 impl FileSystemResolver {
+    /// Creates a new file system resolver with the given root directory.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::file_resolver::FileSystemResolver;
+    /// let resolver = FileSystemResolver::new("./templates".into());
+    /// ```
     pub fn new(root: PathBuf) -> Self {
         let mut root = root.clone();
         // trailing slash is necessary for resolve function, which is, what this 'hack' does
@@ -136,7 +152,7 @@ impl FileSystemResolver {
         }
     }
 
-    /// Use other path to look for local packages
+    /// Sets a custom path for local packages.
     #[deprecated(
         since = "0.14.1",
         note = "Use `FileSystemResolver::local_package_root` instead"
@@ -148,7 +164,15 @@ impl FileSystemResolver {
         }
     }
 
-    /// Use other path to look for local packages
+    /// Sets a custom path for local packages.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use typst_as_lib::file_resolver::FileSystemResolver;
+    /// let resolver = FileSystemResolver::new("./templates".into())
+    ///     .local_package_root("./local-packages".into());
+    /// ```
     pub fn local_package_root(self, local_package_root: PathBuf) -> Self {
         Self {
             local_package_root: Some(local_package_root),
