@@ -2,7 +2,7 @@
 //! Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
 //!
 //! See the [repository README](https://github.com/Relacibo/typst-as-lib) for usage examples.
-//! Inspired by https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs
+//! Inspired by <https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs>
 use std::borrow::Cow;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -221,6 +221,8 @@ impl TypstEngine<TypstTemplateCollection> {
     ///
     /// The input will be available in Typst scripts via `#import sys: inputs`.
     ///
+    /// To change the injection location, use [`custom_inject_location()`](TypstTemplateEngineBuilder::custom_inject_location).
+    ///
     /// # Example
     ///
     /// ```rust,no_run
@@ -271,6 +273,8 @@ impl TypstEngine<TypstTemplateMainFile> {
     /// Compiles the main file with input data injected as `sys.inputs`.
     ///
     /// The input will be available in Typst scripts via `#import sys: inputs`.
+    ///
+    /// To change the injection location, use [`custom_inject_location()`](TypstTemplateEngineBuilder::custom_inject_location).
     ///
     /// # Example
     ///
@@ -409,6 +413,8 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// Adds fonts for rendering.
     ///
     /// Accepts font data as `&[u8]`, `Vec<u8>`, `Bytes`, or `Font`.
+    ///
+    /// For automatic system font discovery, see `typst-kit-fonts` feature.
     ///
     /// # Example
     ///
