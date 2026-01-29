@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT"
 description = "Small wrapper for typst that makes it easier to use it as a templating engine"
 repository = "https://github.com/Relacibo/typst-as-lib"
+documentation = "https://docs.rs/typst-as-lib"
 readme = "README.md"
 keywords = ["template", "typst"]
 categories = ["template-engine"]
