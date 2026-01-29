@@ -2,6 +2,7 @@
 //! Small wrapper around [Typst](https://github.com/typst/typst) that makes it easier to use it as a templating engine.
 //!
 //! See the [repository README](https://github.com/Relacibo/typst-as-lib) for usage examples.
+//!
 //! Inspired by <https://github.com/tfachmann/typst-as-library/blob/main/src/lib.rs>
 use std::borrow::Cow;
 use std::ops::Deref;
