@@ -25,10 +25,14 @@ use typst::utils::LazyHash;
 use typst::{Document, Library, LibraryExt};
 use util::not_found;
 
+use crate::diagnostic::{Diagnostic, Diagnostics};
+
 /// Caching wrapper for file resolvers.
 pub mod cached_file_resolver;
 /// Type conversion traits for Typst types.
 pub mod conversions;
+/// Pretty-printing for Typst source diagnostics.
+pub mod diagnostic;
 /// File resolution for Typst sources and binaries.
 pub mod file_resolver;
 pub(crate) mod util;
@@ -142,7 +146,7 @@ impl<T> TypstEngine<T> {
         }
 
         Warned {
-            output: output.map_err(Into::into),
+            output: output.map_err(|diags| TypstAsLibError::from_diagnostics(&world, diags)),
             warnings,
         }
     }
@@ -744,8 +748,8 @@ struct InjectLocation {
 #[derive(Debug, Clone, Error)]
 pub enum TypstAsLibError {
     /// Errors from Typst source compilation.
-    #[error("Typst source error: {0:?}")]
-    TypstSource(EcoVec<SourceDiagnostic>),
+    #[error("{0}")]
+    TypstSource(Diagnostics),
     /// Errors from file operations.
     #[error("Typst file error: {0}")]
     TypstFile(#[from] FileError),
@@ -772,9 +776,14 @@ impl From<ecow::EcoString> for TypstAsLibError {
     }
 }
 
-impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
-    fn from(value: EcoVec<SourceDiagnostic>) -> Self {
-        TypstAsLibError::TypstSource(value)
+impl TypstAsLibError {
+    fn from_diagnostics<W: typst::World>(world: &W, diagnostics: EcoVec<SourceDiagnostic>) -> Self {
+        TypstAsLibError::TypstSource(Diagnostics(
+            diagnostics
+                .into_iter()
+                .map(|diag| Diagnostic::from_source_diagnostic(world, diag))
+                .collect(),
+        ))
     }
 }
 
