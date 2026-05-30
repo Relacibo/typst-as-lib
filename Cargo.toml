@@ -37,6 +37,7 @@ derive_typst_intoval = "0.6.0"
 typst-pdf = "0.14.2"
 typst-html = "0.14.2"
 typst = "0.14.2"
+tokio = {version = "1.52.3", features = ["rt", "macros"]}
 
 [[example]]
 name = "resolve_packages"
