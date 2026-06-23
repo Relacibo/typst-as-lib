@@ -35,6 +35,7 @@ bytes = { version = "1.11", optional = true }
 [dev-dependencies]
 typst-pdf = "0.15"
 typst-html = "0.15"
+typst-layout = "0.15"
 typst = "0.15"
 
 [[example]]

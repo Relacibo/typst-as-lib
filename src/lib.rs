@@ -54,7 +54,7 @@ pub mod typst_kit_options;
 ///
 /// ```rust,no_run
 /// # use typst_as_lib::TypstEngine;
-/// # use typst::layout::PagedDocument;
+/// # use typst_layout::PagedDocument;
 /// static TEMPLATE: &str = "Hello World!";
 /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
 ///
@@ -71,7 +71,7 @@ pub mod typst_kit_options;
 ///
 /// ```rust,no_run
 /// # use typst_as_lib::TypstEngine;
-/// # use typst::layout::PagedDocument;
+/// # use typst_layout::PagedDocument;
 /// static TEMPLATE: &str = "Hello World!";
 /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
 ///
@@ -219,7 +219,7 @@ impl TypstEngine<TypstTemplateCollection> {
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
     /// # use typst::foundations::{Dict, IntoValue};
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "#import sys: inputs\n#inputs.name";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -332,7 +332,7 @@ impl TypstEngine<TypstTemplateMainFile> {
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
     /// # use typst::foundations::{Dict, IntoValue};
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "#import sys: inputs\nHello #inputs.name!";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -454,7 +454,7 @@ impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
     ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "Hello World!";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -582,7 +582,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
     ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static MAIN: &str = "#import \"lib.typ\": greet\n#greet()";
     /// static LIB: &str = "#let greet() = [Hello World!]";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");

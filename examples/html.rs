@@ -19,7 +19,8 @@ fn main() {
         .expect("typst::compile() returned an error!");
 
     // Create html
-    let html = typst_html::html(&doc).expect("Could not generate HTML.");
+    let options = Default::default();
+    let html = typst_html::html(&doc, &options).expect("Could not generate HTML.");
     fs::write(OUTPUT, html).expect("Could not write HTML.");
 }
 
