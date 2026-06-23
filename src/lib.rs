@@ -18,12 +18,12 @@ use file_resolver::{
 };
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
+use typst::foundations::Output;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::syntax::{FileId, Source};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt};
-use typst::foundations::Output;
 use util::not_found;
 
 /// Caching wrapper for file resolvers.

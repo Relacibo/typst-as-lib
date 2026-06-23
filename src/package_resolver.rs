@@ -430,7 +430,9 @@ impl PackageResolverCache for InMemoryCache {
                 continue;
             };
             let Some(p_str) = p.to_str() else { continue };
-            let Ok(vpath) = VirtualPath::new(p_str) else { continue };
+            let Ok(vpath) = VirtualPath::new(p_str) else {
+                continue;
+            };
             let file_id = RootedPath::new(VirtualRoot::Package(package.clone()), vpath).intern();
             let mut buf = Vec::new();
             let Ok(_) = file.read_to_end(&mut buf) else {
