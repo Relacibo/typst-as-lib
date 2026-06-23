@@ -4,7 +4,7 @@ use typst::{
 };
 
 pub(crate) fn not_found(id: FileId) -> FileError {
-    FileError::NotFound(id.vpath().as_rootless_path().to_path_buf())
+    FileError::NotFound(id.vpath().get_without_slash().into())
 }
 
 pub(crate) fn bytes_to_source(id: FileId, bytes: &[u8]) -> FileResult<Source> {
