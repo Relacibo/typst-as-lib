@@ -12,7 +12,7 @@ use flate2::read::GzDecoder;
 use typst::{
     diag::{FileError, FileResult, PackageError},
     foundations::Bytes,
-    syntax::{FileId, Source, VirtualPath, package::PackageSpec},
+    syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot, package::PackageSpec},
 };
 
 use crate::{
@@ -217,7 +217,7 @@ impl<C> PackageResolver<C> {
             ..
         } = self;
 
-        let Some(package) = id.package() else {
+        let VirtualRoot::Package(package) = id.root() else {
             return Err(not_found(id));
         };
 
@@ -367,7 +367,7 @@ impl PackageResolverCache for FileSystemCache {
         let FileSystemCache(path) = self;
         let dir = compose_cache_file_path(path, package)?;
 
-        let Some(path) = id.vpath().resolve(&dir) else {
+        let Some(path) = id.vpath().realize(&dir).ok() else {
             return Ok(None);
         };
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
@@ -429,7 +429,11 @@ impl PackageResolverCache for InMemoryCache {
             let Ok(p) = file.path() else {
                 continue;
             };
-            let file_id = FileId::new(Some(package.clone()), VirtualPath::new(p));
+            let Some(p_str) = p.to_str() else { continue };
+            let Ok(vpath) = VirtualPath::new(p_str) else {
+                continue;
+            };
+            let file_id = RootedPath::new(VirtualRoot::Package(package.clone()), vpath).intern();
             let mut buf = Vec::new();
             let Ok(_) = file.read_to_end(&mut buf) else {
                 continue;

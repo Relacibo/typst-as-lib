@@ -1,6 +1,5 @@
-use derive_typst_intoval::{IntoDict, IntoValue};
 use std::fs;
-use typst::foundations::{Bytes, Dict, IntoValue};
+use typst::foundations::{Bytes, Dict, IntoValue, Value};
 use typst_as_lib::TypstEngine;
 
 static TEMPLATE_FILE: &str = include_str!("./templates/html.typ");
@@ -20,12 +19,11 @@ fn main() {
         .expect("typst::compile() returned an error!");
 
     // Create html
-    let html = typst_html::html(&doc).expect("Could not generate HTML.");
+    let options = Default::default();
+    let html = typst_html::html(&doc, &options).expect("Could not generate HTML.");
     fs::write(OUTPUT, html).expect("Could not write HTML.");
 }
 
-// Some dummy content. We use `derive_typst_intoval` to easily
-// create `Dict`s from structs by deriving `IntoDict`;
 fn dummy_data() -> Content {
     Content {
         v: vec![
@@ -45,24 +43,42 @@ fn dummy_data() -> Content {
     }
 }
 
-#[derive(Debug, Clone, IntoValue, IntoDict)]
+#[derive(Debug, Clone)]
 struct Content {
     v: Vec<ContentElement>,
 }
 
-// Implement Into<Dict> manually, so we can just pass the struct
-// to the compile function.
 impl From<Content> for Dict {
     fn from(value: Content) -> Self {
-        value.into_dict()
+        let mut dict = Dict::new();
+        dict.insert("v".into(), value.v.into_value());
+        dict
     }
 }
 
-#[derive(Debug, Clone, Default, IntoValue, IntoDict)]
+impl IntoValue for Content {
+    fn into_value(self) -> Value {
+        Value::Dict(self.into())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 struct ContentElement {
     heading: String,
     text: Option<String>,
     num1: i32,
     num2: Option<i32>,
     image: Option<Bytes>,
+}
+
+impl IntoValue for ContentElement {
+    fn into_value(self) -> Value {
+        let mut dict = Dict::new();
+        dict.insert("heading".into(), self.heading.into_value());
+        dict.insert("text".into(), self.text.into_value());
+        dict.insert("num1".into(), self.num1.into_value());
+        dict.insert("num2".into(), self.num2.into_value());
+        dict.insert("image".into(), self.image.into_value());
+        Value::Dict(dict)
+    }
 }

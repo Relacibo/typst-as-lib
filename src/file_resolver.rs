@@ -7,7 +7,7 @@ use std::{
 use typst::{
     diag::{FileError, FileResult},
     foundations::Bytes,
-    syntax::{FileId, Source},
+    syntax::{FileId, Source, VirtualRoot},
 };
 
 use crate::{
@@ -186,7 +186,7 @@ impl FileSystemResolver {
             local_package_root,
         } = self;
         // https://github.com/typst/typst/blob/16736feb13eec87eb9ca114deaeb4f7eeb7409d2/crates/typst-kit/src/package.rs#L102C16-L102C38
-        let dir: Cow<Path> = if let Some(package) = id.package() {
+        let dir: Cow<Path> = if let VirtualRoot::Package(package) = id.root() {
             let data_dir = if let Some(data_dir) = local_package_root {
                 Cow::Borrowed(data_dir)
             } else if let Some(data_dir) = dirs::data_dir() {
@@ -204,8 +204,8 @@ impl FileSystemResolver {
 
         let path = id
             .vpath()
-            .resolve(&dir)
-            .ok_or_else(|| FileError::NotFound(dir.to_path_buf()))?;
+            .realize(&dir)
+            .map_err(|_| FileError::NotFound(dir.to_path_buf()))?;
         let content = std::fs::read(&path).map_err(|error| FileError::from_io(error, &path))?;
         Ok(content)
     }

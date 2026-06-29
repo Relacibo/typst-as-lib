@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.16.0] - 2026-06-23
+
+- Updated `typst`, `typst-kit` and related dependencies to 0.15.
+- **Breaking:** `typst-kit` renamed feature `fonts` → `scan-fonts` and `embed-fonts` → `embedded-fonts`. The `typst-kit-fonts` and `typst-kit-embed-fonts` features of this crate forward to these renamed features accordingly.
+- **Breaking:** `typst-kit` removed the `Fonts::searcher()` builder API. Font loading now uses standalone functions (`typst_kit::fonts::embedded`, `typst_kit::fonts::system`, `typst_kit::fonts::scan`). `FontEnum::FontSlot` has been replaced with `FontEnum::FontPath`.
+- **Breaking:** `typst::compile` now requires `Doc: Output` instead of `Doc: Document`. The `Doc` generic bound on `compile` / `compile_with_input` has been updated accordingly.
+- **Breaking:** `typst::syntax::FileId::new` signature changed — now takes a `RootedPath` instead of `(Option<PackageSpec>, VirtualPath)`.
+- **Breaking:** `World::today` now takes `Option<typst::foundations::Duration>` instead of `Option<i64>`.
+
 ## [0.15.5] - 2026-05-29
 
 - Made `TypstWorld` public, enabling direct access to the Typst world.

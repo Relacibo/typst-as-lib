@@ -18,11 +18,12 @@ use file_resolver::{
 };
 use thiserror::Error;
 use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
+use typst::foundations::Output;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::syntax::{FileId, Source};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::{Document, Library, LibraryExt};
+use typst::{Library, LibraryExt};
 use util::not_found;
 
 /// Caching wrapper for file resolvers.
@@ -53,7 +54,7 @@ pub mod typst_kit_options;
 ///
 /// ```rust,no_run
 /// # use typst_as_lib::TypstEngine;
-/// # use typst::layout::PagedDocument;
+/// # use typst_layout::PagedDocument;
 /// static TEMPLATE: &str = "Hello World!";
 /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
 ///
@@ -70,7 +71,7 @@ pub mod typst_kit_options;
 ///
 /// ```rust,no_run
 /// # use typst_as_lib::TypstEngine;
-/// # use typst::layout::PagedDocument;
+/// # use typst_layout::PagedDocument;
 /// static TEMPLATE: &str = "Hello World!";
 /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
 ///
@@ -111,7 +112,7 @@ impl<T> TypstEngine<T> {
         inputs: Option<Dict>,
     ) -> Warned<Result<Doc, TypstAsLibError>>
     where
-        Doc: Document,
+        Doc: Output,
     {
         let mut builder = TypstWorldBuilder::new(self, main_source_id);
         if let Some(inputs) = inputs {
@@ -218,7 +219,7 @@ impl TypstEngine<TypstTemplateCollection> {
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
     /// # use typst::foundations::{Dict, IntoValue};
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "#import sys: inputs\n#inputs.name";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -244,7 +245,7 @@ impl TypstEngine<TypstTemplateCollection> {
     where
         F: IntoFileId,
         D: Into<Dict>,
-        Doc: Document,
+        Doc: Output,
     {
         self.do_compile(main_source_id.into_file_id(), Some(inputs.into()))
     }
@@ -253,7 +254,7 @@ impl TypstEngine<TypstTemplateCollection> {
     pub fn compile<F, Doc>(&self, main_source_id: F) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: IntoFileId,
-        Doc: Document,
+        Doc: Output,
     {
         self.do_compile(main_source_id.into_file_id(), None)
     }
@@ -331,7 +332,7 @@ impl TypstEngine<TypstTemplateMainFile> {
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
     /// # use typst::foundations::{Dict, IntoValue};
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "#import sys: inputs\nHello #inputs.name!";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -352,7 +353,7 @@ impl TypstEngine<TypstTemplateMainFile> {
     pub fn compile_with_input<D, Doc>(&self, inputs: D) -> Warned<Result<Doc, TypstAsLibError>>
     where
         D: Into<Dict>,
-        Doc: Document,
+        Doc: Output,
     {
         let TypstTemplateMainFile { source_id } = self.template;
         self.do_compile(source_id, Some(inputs.into()))
@@ -361,7 +362,7 @@ impl TypstEngine<TypstTemplateMainFile> {
     /// Compiles the main file without input data.
     pub fn compile<Doc>(&self) -> Warned<Result<Doc, TypstAsLibError>>
     where
-        Doc: Document,
+        Doc: Output,
     {
         let TypstTemplateMainFile { source_id } = self.template;
         self.do_compile(source_id, None)
@@ -453,7 +454,7 @@ impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
     ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static TEMPLATE: &str = "Hello World!";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
     ///
@@ -581,7 +582,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
     ///
     /// ```rust,no_run
     /// # use typst_as_lib::TypstEngine;
-    /// # use typst::layout::PagedDocument;
+    /// # use typst_layout::PagedDocument;
     /// static MAIN: &str = "#import \"lib.typ\": greet\n#greet()";
     /// static LIB: &str = "#let greet() = [Hello World!]";
     /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
@@ -726,28 +727,42 @@ impl<T> TypstTemplateEngineBuilder<T> {
                 #[cfg(feature = "typst-kit-embed-fonts")]
                 include_embedded_fonts,
             } = typst_kit_font_options;
-            let mut searcher = typst_kit::fonts::Fonts::searcher();
+            let mut tk_book = typst::text::FontBook::new();
+            let mut tk_fonts: Vec<FontEnum> = Vec::new();
+
             #[cfg(feature = "typst-kit-embed-fonts")]
-            searcher.include_embedded_fonts(include_embedded_fonts);
-            let typst_kit::fonts::Fonts {
-                book: typst_kit_book,
-                fonts: typst_kit_fonts,
-            } = searcher
-                .include_system_fonts(include_system_fonts)
-                .search_with(include_dirs);
-            let len = typst_kit_fonts.len();
-            let font_slots = typst_kit_fonts.into_iter().map(FontEnum::FontSlot);
+            if include_embedded_fonts {
+                for (font, info) in typst_kit::fonts::embedded() {
+                    tk_book.push(info);
+                    tk_fonts.push(FontEnum::Font(font));
+                }
+            }
+
+            if include_system_fonts {
+                for (font_path, info) in typst_kit::fonts::system() {
+                    tk_book.push(info);
+                    tk_fonts.push(FontEnum::FontPath(font_path));
+                }
+            }
+            for dir in &include_dirs {
+                for (font_path, info) in typst_kit::fonts::scan(dir) {
+                    tk_book.push(info);
+                    tk_fonts.push(FontEnum::FontPath(font_path));
+                }
+            }
+
+            let len = tk_fonts.len();
             if fonts.is_empty() {
-                book = typst_kit_book;
-                fonts = font_slots.collect();
+                book = tk_book;
+                fonts = tk_fonts;
             } else {
                 for i in 0..len {
-                    let Some(info) = typst_kit_book.info(i) else {
+                    let Some(info) = tk_book.info(i) else {
                         break;
                     };
                     book.push(info.clone());
                 }
-                fonts.extend(font_slots);
+                fonts.extend(tk_fonts);
             }
         }
 
@@ -825,10 +840,10 @@ impl typst::World for TypstWorld<'_> {
         self.fonts[id].get()
     }
 
-    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+    fn today(&self, offset: Option<typst::foundations::Duration>) -> Option<Datetime> {
         let mut now = self.now;
         if let Some(offset) = offset {
-            now += Duration::hours(offset);
+            now += Duration::hours(offset.hours() as i64);
         }
         let date = now.date_naive();
         let year = date.year();
@@ -933,7 +948,7 @@ pub enum FontEnum {
     Font(Font),
     /// A lazy font slot from typst-kit.
     #[cfg(feature = "typst-kit-fonts")]
-    FontSlot(typst_kit::fonts::FontSlot),
+    FontPath(typst_kit::fonts::FontPath),
 }
 
 impl FontEnum {
@@ -942,7 +957,10 @@ impl FontEnum {
         match self {
             FontEnum::Font(font) => Some(font.clone()),
             #[cfg(feature = "typst-kit-fonts")]
-            FontEnum::FontSlot(font_slot) => font_slot.get(),
+            FontEnum::FontPath(font_path) => {
+                use typst_kit::fonts::FontSource;
+                font_path.load()
+            }
         }
     }
 }

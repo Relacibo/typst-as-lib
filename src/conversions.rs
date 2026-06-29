@@ -1,6 +1,6 @@
 use typst::{
     foundations::Bytes,
-    syntax::{FileId, Source, VirtualPath, package::PackageSpec},
+    syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot, package::PackageSpec},
     text::Font,
 };
 
@@ -20,14 +20,16 @@ impl IntoFileId for FileId {
 
 impl IntoFileId for &str {
     fn into_file_id(self) -> FileId {
-        FileId::new(None, VirtualPath::new(self))
+        let vpath = VirtualPath::new(self).expect("valid virtual path");
+        RootedPath::new(VirtualRoot::Project, vpath).intern()
     }
 }
 
 impl IntoFileId for (PackageSpec, &str) {
     fn into_file_id(self) -> FileId {
         let (p, id) = self;
-        FileId::new(Some(p), VirtualPath::new(id))
+        let vpath = VirtualPath::new(id).expect("valid virtual path");
+        RootedPath::new(VirtualRoot::Package(p), vpath).intern()
     }
 }
 
@@ -48,7 +50,8 @@ impl IntoSource for Source {
 impl IntoSource for (&str, String) {
     fn into_source(self) -> Source {
         let (path, source) = self;
-        let id = FileId::new(None, VirtualPath::new(path));
+        let vpath = VirtualPath::new(path).expect("valid virtual path");
+        let id = RootedPath::new(VirtualRoot::Project, vpath).intern();
         Source::new(id, source)
     }
 }
