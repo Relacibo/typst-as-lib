@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.17.0] - 2026-10-07
+
+- **Breaking:** `TypstTemplateEngineBuilder::comemo_evict_max_age` now takes ownership of `self` and returns `Self`, consistent with the other builder methods. Code that chained this method after another builder call no longer fails to compile with "cannot move out of a mutable reference" (https://github.com/Relacibo/typst-as-lib/pull/58 by ta-vroom).
+
 ## [0.16.0] - 2026-06-23
 
 - Updated `typst`, `typst-kit` and related dependencies to 0.15.
