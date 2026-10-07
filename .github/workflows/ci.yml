@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
 
@@ -169,3 +170,36 @@ jobs:
 
     - name: Check with minimal versions
       run: cargo +nightly check -Z minimal-versions --all-features
+
+  publish:
+    name: Publish to crates.io
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ format, clippy, test, build, examples, minimal-versions ]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Verify tag matches crate version
+      run: |
+        tag="${GITHUB_REF#refs/tags/}"
+        version="v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+        if [ "$tag" != "$version" ]; then
+          echo "ERROR: tag $tag does not match crate version $version — forgotten bump?" >&2
+          exit 1
+        fi
+
+    - name: Skip if version already published
+      run: |
+        version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+        if curl -sf "https://crates.io/api/v1/crates/typst-as-lib" | jq -e --arg v "$version" '.versions[] | select(.num == $v)' > /dev/null; then
+          echo "typst-as-lib $version is already published on crates.io — skipping"
+          echo "SKIP_PUBLISH=1" >> "$GITHUB_ENV"
+        fi
+
+    - name: Publish
+      if: env.SKIP_PUBLISH != '1'
+      run: cargo publish --locked --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
