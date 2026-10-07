@@ -34,7 +34,7 @@ release version:
     fi
 
     git fetch origin main --quiet
-    if [ -n "$(git rev-list --count HEAD..origin/main)" ]; then
+    if [ "$(git rev-list --count HEAD..origin/main)" -ne 0 ]; then
         echo "ERROR: origin/main has commits not in HEAD — pull first" >&2
         exit 1
     fi
