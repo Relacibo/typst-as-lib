@@ -195,7 +195,8 @@ jobs:
     - name: Skip if version already published
       run: |
         version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
-        if curl -sf "https://crates.io/api/v1/crates/typst-as-lib" | jq -e --arg v "$version" '.versions[] | select(.num == $v)' > /dev/null; then
+        # crates.io API requires a User-Agent (403 otherwise)
+        if curl -sf -H 'User-Agent: typst-as-lib-ci (github.com/Relacibo/typst-as-lib)' "https://crates.io/api/v1/crates/typst-as-lib" | jq -e --arg v "$version" '.versions[] | select(.num == $v)' > /dev/null; then
           echo "typst-as-lib $version is already published on crates.io — skipping"
           echo "SKIP_PUBLISH=1" >> "$GITHUB_ENV"
         fi
