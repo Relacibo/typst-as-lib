@@ -663,7 +663,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// Sets the maximum age for comemo cache eviction after compilation.
     ///
     /// Default is `Some(0)`, which evicts after each compilation.
-    pub fn comemo_evict_max_age(&mut self, comemo_evict_max_age: Option<usize>) -> &mut Self {
+    pub fn comemo_evict_max_age(mut self, comemo_evict_max_age: Option<usize>) -> Self {
         self.comemo_evict_max_age = comemo_evict_max_age;
         self
     }
