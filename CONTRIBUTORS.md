@@ -25,7 +25,8 @@ dependencies fresh.
 
 ## AI assistance
 
-The 0.18.0 `diagnostic::SourceDiagnostics` work (see
-[#61](https://github.com/Relacibo/typst-as-lib/pull/61)) was developed with AI
-assistance — design and review by Opus 5.5, implementation by GLM 5.3 Flash
-(OpenCode).
+A substantial part of the recent development has been done with AI assistance —
+including most doc comments and features like the `time` module (0.17.1) and
+`diagnostic::SourceDiagnostics` (0.18.0). Design and review happen with Opus 5.5,
+implementation with GLM 5.3 Flash (OpenCode); Relacibo reviews every change
+before it lands.
