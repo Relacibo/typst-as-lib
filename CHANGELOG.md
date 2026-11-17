@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- **Breaking:** `TypstAsLibError::TypstSource` now carries `diagnostic::SourceDiagnostics` instead of a raw `EcoVec<SourceDiagnostic>`. Its `Display` is a human-readable report with file/line/column locations, traceback and hints; locations can also be resolved individually via `SourceDiagnostics::location`, without a world. The raw diagnostics stay accessible through `Deref<Target = [SourceDiagnostic]>`. `SourceDiagnostics::new` is public, so users of `with_world` can wrap warnings the same way. The `From<EcoVec<SourceDiagnostic>>` impl for `TypstAsLibError` was removed. (https://github.com/Relacibo/typst-as-lib/pull/53 by lukas-loering)
+
 ## [0.17.1] - 2026-11-17
 
 - Added time providers for `datetime.today()`: new module `time` with the `TimeProvider` trait, `SystemTimeProvider` (default) and `FixedTimeProvider`. The provider is set on the engine via `TypstTemplateEngineBuilder::time_provider`, is queried once per compilation and used by every compilation method. `TypstWorldBuilder::with_fixed_time` overrides it for a single compilation. The public API uses `std::time::SystemTime`; chrono is no longer a dependency (the `time` crate is used internally). `Arc<T>` and `Box<T>` implement `TimeProvider` via blanket impls, so shared clocks (e.g. steerable test clocks) can be passed with `Arc::clone`.

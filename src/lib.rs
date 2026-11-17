@@ -9,17 +9,17 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use crate::diagnostic::SourceDiagnostics;
 use crate::time::{SystemTimeProvider, TimeProvider};
 use ::time::OffsetDateTime;
 use cached_file_resolver::IntoCachedFileResolver;
 use conversions::{IntoBytes, IntoFileId, IntoFonts, IntoSource};
-use ecow::EcoVec;
 use file_resolver::{
     FileResolver, FileSystemResolver, MainSourceFileResolver, StaticFileResolver,
     StaticSourceFileResolver,
 };
 use thiserror::Error;
-use typst::diag::{FileError, FileResult, HintedString, SourceDiagnostic, Warned};
+use typst::diag::{FileError, FileResult, HintedString, Warned};
 use typst::foundations::Output;
 use typst::foundations::{Bytes, Datetime, Dict, Module, Scope, Value};
 use typst::syntax::{FileId, Source};
@@ -32,6 +32,8 @@ use util::not_found;
 pub mod cached_file_resolver;
 /// Type conversion traits for Typst types.
 pub mod conversions;
+/// Diagnostics with resolvable source locations.
+pub mod diagnostic;
 /// File resolution for Typst sources and binaries.
 pub mod file_resolver;
 /// Time providers for Typst's `datetime.today()`.
@@ -136,10 +138,9 @@ impl<T> TypstEngine<T> {
         if let Some(max_age) = self.comemo_evict_max_age {
             comemo::evict(max_age);
         }
-        Warned {
-            output: output.map_err(Into::into),
-            warnings,
-        }
+        let output = output
+            .map_err(|diags| TypstAsLibError::TypstSource(SourceDiagnostics::new(&world, diags)));
+        Warned { output, warnings }
     }
 
     fn create_injected_library<D>(&self, input: D) -> Result<LazyHash<Library>, TypstAsLibError>
@@ -217,6 +218,9 @@ impl TypstEngine<TypstTemplateCollection> {
     ///
     /// The input will be available in Typst scripts via `#import sys: inputs`.
     ///
+    /// Compilation errors carry a [`SourceDiagnostics`] with resolvable
+    /// locations; warnings stay raw. See the [`diagnostic`] module.
+    ///
     /// To change the injection location, use [`custom_inject_location()`](TypstTemplateEngineBuilder::custom_inject_location).
     ///
     /// # Example
@@ -256,6 +260,9 @@ impl TypstEngine<TypstTemplateCollection> {
     }
 
     /// Compiles a Typst document without input data.
+    ///
+    /// Compilation errors carry a [`SourceDiagnostics`] with resolvable
+    /// locations; warnings stay raw. See the [`diagnostic`] module.
     pub fn compile<F, Doc>(&self, main_source_id: F) -> Warned<Result<Doc, TypstAsLibError>>
     where
         F: IntoFileId,
@@ -330,6 +337,9 @@ impl TypstEngine<TypstTemplateMainFile> {
     ///
     /// The input will be available in Typst scripts via `#import sys: inputs`.
     ///
+    /// Compilation errors carry a [`SourceDiagnostics`] with resolvable
+    /// locations; warnings stay raw. See the [`diagnostic`] module.
+    ///
     /// To change the injection location, use [`custom_inject_location()`](TypstTemplateEngineBuilder::custom_inject_location).
     ///
     /// # Example
@@ -365,6 +375,9 @@ impl TypstEngine<TypstTemplateMainFile> {
     }
 
     /// Compiles the main file without input data.
+    ///
+    /// Compilation errors carry a [`SourceDiagnostics`] with resolvable
+    /// locations; warnings stay raw. See the [`diagnostic`] module.
     pub fn compile<Doc>(&self) -> Warned<Result<Doc, TypstAsLibError>>
     where
         Doc: Output,
@@ -1013,9 +1026,11 @@ struct InjectLocation {
 /// Errors that can occur when using typst-as-lib.
 #[derive(Debug, Clone, Error)]
 pub enum TypstAsLibError {
-    /// Errors from Typst source compilation.
-    #[error("Typst source error: {0:?}")]
-    TypstSource(EcoVec<SourceDiagnostic>),
+    /// Errors from Typst source compilation, together with the sources
+    /// referenced by their spans, so that locations remain resolvable
+    /// without a world. See [`diagnostic::SourceDiagnostics`].
+    #[error("{0}")]
+    TypstSource(SourceDiagnostics),
     /// Errors from file operations.
     #[error("Typst file error: {0}")]
     TypstFile(#[from] FileError),
@@ -1039,12 +1054,6 @@ impl From<HintedString> for TypstAsLibError {
 impl From<ecow::EcoString> for TypstAsLibError {
     fn from(value: ecow::EcoString) -> Self {
         TypstAsLibError::Unspecified(value)
-    }
-}
-
-impl From<EcoVec<SourceDiagnostic>> for TypstAsLibError {
-    fn from(value: EcoVec<SourceDiagnostic>) -> Self {
-        TypstAsLibError::TypstSource(value)
     }
 }
 
@@ -1075,9 +1084,12 @@ impl FontEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagnostic::SourceDiagnostics;
     use crate::time::FixedTimeProvider;
+    use ecow::EcoVec;
     use std::sync::Arc;
     use typst::layout::FrameItem;
+    use typst::syntax::Span;
     use typst_layout::PagedDocument;
 
     /// Fixed instant as seconds since the Unix epoch.
@@ -1261,5 +1273,105 @@ mod tests {
         let doc_b: PagedDocument = engine_b.compile("main.typ").output.unwrap();
         assert_eq!(page_text(&doc_a), "Shared resolver!");
         assert_eq!(page_text(&doc_b), "Shared resolver!");
+    }
+
+    fn engine_with_sources(
+        sources: impl IntoIterator<Item = (&'static str, &'static str)>,
+    ) -> TypstEngine<TypstTemplateCollection> {
+        static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+        TypstEngine::builder()
+            .fonts([FONT])
+            .with_static_source_file_resolver(sources)
+            .build()
+    }
+
+    fn compile_error_of(
+        engine: &TypstEngine<TypstTemplateCollection>,
+        file: &'static str,
+    ) -> SourceDiagnostics {
+        let err = engine
+            .compile::<_, PagedDocument>(file)
+            .output
+            .expect_err("expected compilation to fail");
+        match err {
+            TypstAsLibError::TypstSource(diags) => diags,
+            other => panic!("expected TypstSource diagnostics, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_error_display_contains_location_and_message() {
+        let engine = engine_with_sources([("main.typ", "= Hello\n#panic(\"invalid color\")")]);
+        let err = engine
+            .compile::<_, PagedDocument>("main.typ")
+            .output
+            .expect_err("expected compilation to fail");
+        // The error itself is printable — its Display is routed through the
+        // diagnostics report:
+        let report = err.to_string();
+        assert!(report.contains("error:"), "no severity in report: {report}");
+        assert!(
+            report.contains("main.typ:2:"),
+            "no location in report: {report}"
+        );
+        assert!(
+            report.contains("invalid color"),
+            "no message in report: {report}"
+        );
+    }
+
+    #[test]
+    fn imported_file_error_resolves_cause_and_trace() {
+        let engine = engine_with_sources([
+            ("main.typ", "#import \"lib.typ\": boom\n#boom()"),
+            ("lib.typ", "#let boom() = panic(\"kaboom\")"),
+        ]);
+        let diags = compile_error_of(&engine, "main.typ");
+        let report = diags.to_string();
+        // The cause resolves inside the imported file...
+        assert!(report.contains("lib.typ:1:"), "cause not located: {report}");
+        // ...and the traceback points at the call site in the main file.
+        assert!(report.contains("traceback:"), "no traceback: {report}");
+        assert!(
+            report.contains("main.typ:2:"),
+            "call site not located: {report}"
+        );
+        assert!(
+            report.contains("while calling"),
+            "tracepoint not rendered: {report}"
+        );
+    }
+
+    #[test]
+    fn hints_are_printed() {
+        // A length without a unit triggers Typst's "did you mean" hint
+        // (the argument expects a length, an integer was passed).
+        let engine = engine_with_sources([("main.typ", "#text(size: 10)[a]")]);
+        let diags = compile_error_of(&engine, "main.typ");
+        let report = diags.to_string();
+        assert!(report.contains("hints:"), "no hints section: {report}");
+        assert!(
+            diags.iter().any(|diag| !diag.hints.is_empty()),
+            "expected a diagnostic carrying a hint: {report}"
+        );
+    }
+
+    #[test]
+    fn detached_span_location_is_none() {
+        let engine = engine_with_sources([("main.typ", "= Hello")]);
+        let world = engine.world_builder("main.typ").build().unwrap();
+        let diags = SourceDiagnostics::new(&world, EcoVec::new());
+        assert_eq!(diags.location(Span::detached()), None);
+    }
+
+    #[test]
+    fn raw_diagnostics_accessible_through_deref() {
+        let engine = engine_with_sources([("main.typ", "#panic(\"boom\")")]);
+        let diags = compile_error_of(&engine, "main.typ");
+        // Existing code patterns keep compiling through
+        // `Deref<Target = [SourceDiagnostic]>`:
+        assert_eq!(diags.len(), 1);
+        let messages: Vec<&str> = diags.iter().map(|diag| diag.message.as_str()).collect();
+        assert!(messages.iter().any(|message| message.contains("boom")));
     }
 }
