@@ -25,8 +25,8 @@ dependencies fresh.
 
 ## AI assistance
 
-A substantial part of the recent development has been done with AI assistance —
-including most doc comments and features like the `time` module (0.17.1) and
-`diagnostic::SourceDiagnostics` (0.18.0). Design and review happen with Opus 5.5,
-implementation with GLM 5.3 Flash (OpenCode); Relacibo reviews every change
-before it lands.
+typst-as-lib itself was built by Relacibo without AI. Some features and fixes
+on top of it were developed with AI assistance — e.g. the `time` module
+(0.17.1) and `diagnostic::SourceDiagnostics` (0.18.0), including most doc
+comments. Design and review happen with Opus 5.5, implementation with GLM 5.3
+Flash (OpenCode); Relacibo reviews every change before it lands.
