@@ -114,6 +114,26 @@ jobs:
     - name: Build no default features
       run: cargo build --no-default-features --verbose
 
+  wasm:
+    name: Wasm check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+
+    - name: Setup cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Check WASM target
+      run: cargo check --target wasm32-unknown-unknown --no-default-features
+
   examples:
     name: Examples
     runs-on: ubuntu-latest
@@ -126,6 +146,8 @@ jobs:
         - name: resolve_static
           features: ''
         - name: resolve_packages
+          features: 'packages,ureq'
+        - name: prefetch_packages
           features: 'packages,ureq'
         - name: font_searcher
           features: 'typst-kit-fonts,typst-kit-embed-fonts'
@@ -174,7 +196,7 @@ jobs:
   publish:
     name: Publish to crates.io
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ format, clippy, test, build, examples, minimal-versions ]
+    needs: [ format, clippy, test, build, wasm, examples, minimal-versions ]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository

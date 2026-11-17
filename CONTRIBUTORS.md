@@ -22,6 +22,12 @@ dependencies fresh.
   merged as-is, but its core idea shaped
   [`diagnostic::SourceDiagnostics`](https://docs.rs/typst-as-lib/latest/typst_as_lib/diagnostic/index.html)
   (0.18.0), where he is also credited.
+- [fallible-algebra](https://github.com/fallible-algebra) — pushed host-side
+  package prefetching for WASM
+  ([#52](https://github.com/Relacibo/typst-as-lib/pull/52),
+  [#16](https://github.com/Relacibo/typst-as-lib/pull/16)); his transitive
+  scan approach informed
+  [`examples/prefetch_packages.rs`](examples/prefetch_packages.rs).
 
 ## AI assistance
 

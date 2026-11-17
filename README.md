@@ -243,8 +243,11 @@ comemo::evict(30); // manage eviction yourself
 
 The time source for `datetime.today()` is configurable via the `TimeProvider` trait (module `time`) — e.g. for reproducible builds or snapshot tests. See [`TypstTemplateEngineBuilder::time_provider`](https://docs.rs/typst-as-lib/latest/typst_as_lib/struct.TypstTemplateEngineBuilder.html#method.time_provider).
 
+## Packages in WASM / async hosts
+
+The `World` is synchronous — blocking IO only — which browser WASM can't provide mid-compile. Hosts therefore fetch packages *ahead* of the compile and feed them into the engine as static resolvers; the complete recipe is [`examples/prefetch_packages.rs`](examples/prefetch_packages.rs).
+
 ## TODO
-- Maybe `packages` WASM support, if possible... 
 - Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls. Maybe add "shared file resolver".
 - Support multiple typst versions with feature flags
 - Support typst feature to embed files

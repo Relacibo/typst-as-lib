@@ -50,5 +50,6 @@ jobs:
         cargo build --example small_example
         cargo build --example resolve_static
         cargo build --example resolve_packages --features packages,ureq
+        cargo build --example prefetch_packages --features packages,ureq
         cargo build --example font_searcher --features typst-kit-fonts,typst-kit-embed-fonts
         cargo build --example html --features typst-html

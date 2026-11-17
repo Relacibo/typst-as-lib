@@ -43,6 +43,10 @@ name = "resolve_packages"
 required-features = ["packages"]
 
 [[example]]
+name = "prefetch_packages"
+required-features = ["packages", "ureq"]
+
+[[example]]
 name = "font_searcher"
 required-features = ["typst-kit-fonts", "typst-kit-embed-fonts"]
 
