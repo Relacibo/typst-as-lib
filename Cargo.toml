@@ -20,7 +20,7 @@ typst-html = []
 
 [dependencies]
 binstall-tar = { version = "0.4", optional = true }
-chrono = "0.4"
+time = "0.3.36"
 comemo = "0.5"
 dirs = "6.0"
 ecow = "0.2"

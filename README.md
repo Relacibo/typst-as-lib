@@ -239,6 +239,10 @@ let doc = typst::compile(&world).output.expect("compile failed");
 comemo::evict(30); // manage eviction yourself
 ```
 
+## Fixing the time (`datetime.today()`)
+
+The time source for `datetime.today()` is configurable via the `TimeProvider` trait (module `time`) — e.g. for reproducible builds or snapshot tests. See [`TypstTemplateEngineBuilder::time_provider`](https://docs.rs/typst-as-lib/latest/typst_as_lib/struct.TypstTemplateEngineBuilder.html#method.time_provider).
+
 ## TODO
 - Maybe `packages` WASM support, if possible... 
 - Make "static `Source`s/binary files" added with `TypstEngineBuilder::with_static_[file/source_file]_resolver` and main file editable inbetween `compile` calls. Maybe add "shared file resolver".

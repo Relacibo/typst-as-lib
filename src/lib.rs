@@ -7,9 +7,11 @@
 use std::borrow::Cow;
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
+use crate::time::{SystemTimeProvider, TimeProvider};
+use ::time::OffsetDateTime;
 use cached_file_resolver::IntoCachedFileResolver;
-use chrono::{DateTime, Datelike, Duration, Utc};
 use conversions::{IntoBytes, IntoFileId, IntoFonts, IntoSource};
 use ecow::EcoVec;
 use file_resolver::{
@@ -32,6 +34,8 @@ pub mod cached_file_resolver;
 pub mod conversions;
 /// File resolution for Typst sources and binaries.
 pub mod file_resolver;
+/// Time providers for Typst's `datetime.today()`.
+pub mod time;
 pub(crate) mod util;
 
 #[cfg(all(feature = "packages", any(feature = "ureq", feature = "reqwest")))]
@@ -93,6 +97,7 @@ pub struct TypstEngine<T = TypstTemplateCollection> {
     library: LazyHash<Library>,
     comemo_evict_max_age: Option<usize>,
     fonts: Vec<FontEnum>,
+    time_provider: Box<dyn TimeProvider>,
 }
 
 /// Type state indicating no main file is set.
@@ -429,6 +434,7 @@ pub struct TypstTemplateEngineBuilder<T = TypstTemplateCollection> {
     fonts: Option<Vec<Font>>,
     #[cfg(feature = "typst-kit-fonts")]
     typst_kit_font_options: Option<typst_kit_options::TypstKitFontOptions>,
+    time_provider: Box<dyn TimeProvider>,
 }
 
 impl Default for TypstTemplateEngineBuilder {
@@ -441,6 +447,7 @@ impl Default for TypstTemplateEngineBuilder {
             fonts: Default::default(),
             #[cfg(feature = "typst-kit-fonts")]
             typst_kit_font_options: None,
+            time_provider: Box::new(SystemTimeProvider),
         }
     }
 }
@@ -481,6 +488,7 @@ impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
             fonts,
             #[cfg(feature = "typst-kit-fonts")]
             typst_kit_font_options,
+            time_provider,
             ..
         } = self;
         file_resolvers.push(Box::new(MainSourceFileResolver::new(source)));
@@ -492,6 +500,7 @@ impl TypstTemplateEngineBuilder<TypstTemplateCollection> {
             fonts,
             #[cfg(feature = "typst-kit-fonts")]
             typst_kit_font_options,
+            time_provider,
         }
     }
 }
@@ -565,6 +574,10 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// Adds a custom file resolver.
     ///
     /// Resolvers are tried in order until one successfully resolves the file.
+    ///
+    /// To share a resolver (e.g. one package cache) between multiple engines,
+    /// wrap it in `Arc` — [`Arc`](std::sync::Arc) implements [`FileResolver`]
+    /// via a blanket impl.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
         F: FileResolver + Send + Sync + 'static,
@@ -668,6 +681,46 @@ impl<T> TypstTemplateEngineBuilder<T> {
         self
     }
 
+    /// Sets the [`TimeProvider`] that determines the time `datetime.today()`
+    /// returns during compilation.
+    ///
+    /// Defaults to [`SystemTimeProvider`] (the system clock). The provider is
+    /// queried once per compilation, so all `datetime.today()` calls within
+    /// one document see the same time. It is used by every compilation
+    /// method: [`compile`](TypstEngine::compile),
+    /// [`compile_with_input`](TypstEngine::compile_with_input),
+    /// [`with_world`](TypstEngine::with_world) and
+    /// [`world_builder`](TypstEngine::world_builder).
+    ///
+    /// To share a stateful clock (e.g. a steerable test clock) across
+    /// engines, pass `Arc::clone(&clock)` — [`Arc`](std::sync::Arc)
+    /// implements [`TimeProvider`] via a blanket impl, as does [`Box`].
+    ///
+    /// To override the time for a single compilation only, see
+    /// [`with_fixed_time`](TypstWorldBuilder::with_fixed_time).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use typst_as_lib::{TypstEngine, time::FixedTimeProvider};
+    /// # use std::time::{Duration, SystemTime};
+    /// static TEMPLATE: &str = "#datetime.today().display()";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let fixed = SystemTime::UNIX_EPOCH + Duration::from_secs(1_718_452_800);
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .time_provider(FixedTimeProvider::new(fixed))
+    ///     .build();
+    ///
+    /// let world = engine.world_builder().build().unwrap();
+    /// ```
+    pub fn time_provider<P: TimeProvider + 'static>(mut self, provider: P) -> Self {
+        self.time_provider = Box::new(provider);
+        self
+    }
+
     /// Enables downloading packages from the Typst package repository.
     ///
     /// Packages are cached on the file system for reuse.
@@ -707,6 +760,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
             fonts,
             #[cfg(feature = "typst-kit-fonts")]
             typst_kit_font_options,
+            time_provider,
         } = self;
 
         let mut book = FontBook::new();
@@ -782,6 +836,25 @@ impl<T> TypstTemplateEngineBuilder<T> {
             library: LazyHash::new(library),
             book: LazyHash::new(book),
             fonts,
+            time_provider,
+        }
+    }
+}
+
+/// Converts a `SystemTime` to an `OffsetDateTime` in UTC. Returns `None`
+/// when the value lies outside the range supported by the `time` crate
+/// (years -9999 to 9999), e.g. for a misconfigured [`TimeProvider`].
+fn system_time_to_datetime(now: SystemTime) -> Option<OffsetDateTime> {
+    match now.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(duration) => {
+            let duration = ::time::Duration::try_from(duration).ok()?;
+            OffsetDateTime::UNIX_EPOCH.checked_add(duration)
+        }
+        Err(_) => {
+            let duration =
+                ::time::Duration::try_from(SystemTime::UNIX_EPOCH.duration_since(now).ok()?)
+                    .ok()?;
+            OffsetDateTime::UNIX_EPOCH.checked_sub(duration)
         }
     }
 }
@@ -793,7 +866,7 @@ impl<T> TypstTemplateEngineBuilder<T> {
 pub struct TypstWorld<'a> {
     library: Cow<'a, LazyHash<Library>>,
     main_source_id: FileId,
-    now: DateTime<Utc>,
+    now: Option<OffsetDateTime>,
     book: &'a LazyHash<FontBook>,
     file_resolvers: &'a [Box<dyn FileResolver + Send + Sync + 'static>],
     fonts: &'a [FontEnum],
@@ -841,26 +914,28 @@ impl typst::World for TypstWorld<'_> {
     }
 
     fn today(&self, offset: Option<typst::foundations::Duration>) -> Option<Datetime> {
-        let mut now = self.now;
+        let mut now = self.now?;
         if let Some(offset) = offset {
-            now += Duration::hours(offset.hours() as i64);
+            // Apply the full offset, not just whole hours — the duration may
+            // contain minutes/seconds and can be negative. Out-of-range
+            // offsets resolve to `None`, which Typst reports as a normal
+            // error instead of panicking.
+            now = now.checked_add(offset.into())?;
         }
-        let date = now.date_naive();
-        let year = date.year();
-        let month = (date.month0() + 1) as u8;
-        let day = (date.day0() + 1) as u8;
-        Datetime::from_ymd(year, month, day)
+        let date = now.date();
+        Datetime::from_ymd(date.year(), u8::from(date.month()), date.day())
     }
 }
 
 /// Builder for constructing a [`TypstWorld`] from a [`TypstEngine`].
 ///
 /// Obtained via [`TypstEngine::world_builder`]. Call [`with_inputs`](Self::with_inputs)
-/// optionally, then [`build`](Self::build) to get the world.
+/// or [`with_fixed_time`](Self::with_fixed_time) optionally, then [`build`](Self::build) to get the world.
 pub struct TypstWorldBuilder<'a, T> {
     engine: &'a TypstEngine<T>,
     main_source_id: FileId,
     inputs: Option<Dict>,
+    now_override: Option<SystemTime>,
 }
 
 impl<'a, T> TypstWorldBuilder<'a, T> {
@@ -869,12 +944,40 @@ impl<'a, T> TypstWorldBuilder<'a, T> {
             engine,
             main_source_id,
             inputs: None,
+            now_override: None,
         }
     }
 
     /// Injects a `Dict` as `sys.inputs` into the compiled document.
     pub fn with_inputs<D: Into<Dict>>(mut self, inputs: D) -> Self {
         self.inputs = Some(inputs.into());
+        self
+    }
+
+    /// Overrides the time `datetime.today()` returns for this compilation,
+    /// regardless of the [`TimeProvider`] configured on the [`TypstEngine`].
+    ///
+    /// Useful for reproducible output, e.g. snapshot tests or deterministic
+    /// builds of documents that use `datetime.today()`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use typst_as_lib::TypstEngine;
+    /// # use std::time::{Duration, SystemTime};
+    /// static TEMPLATE: &str = "#datetime.today().display()";
+    /// static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+    ///
+    /// let engine = TypstEngine::builder()
+    ///     .main_file(TEMPLATE)
+    ///     .fonts([FONT])
+    ///     .build();
+    ///
+    /// let fixed = SystemTime::UNIX_EPOCH + Duration::from_secs(1_718_452_800);
+    /// let world = engine.world_builder().with_fixed_time(fixed).build().unwrap();
+    /// ```
+    pub fn with_fixed_time(mut self, now: SystemTime) -> Self {
+        self.now_override = Some(now);
         self
     }
 
@@ -886,10 +989,14 @@ impl<'a, T> TypstWorldBuilder<'a, T> {
             Cow::Borrowed(&self.engine.library)
         };
 
+        let now = self
+            .now_override
+            .unwrap_or_else(|| self.engine.time_provider.now());
+
         Ok(TypstWorld {
             main_source_id: self.main_source_id,
             library,
-            now: Utc::now(),
+            now: system_time_to_datetime(now),
             file_resolvers: &self.engine.file_resolvers,
             book: &self.engine.book,
             fonts: &self.engine.fonts,
@@ -962,5 +1069,197 @@ impl FontEnum {
                 font_path.load()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::time::FixedTimeProvider;
+    use std::sync::Arc;
+    use typst::layout::FrameItem;
+    use typst_layout::PagedDocument;
+
+    /// Fixed instant as seconds since the Unix epoch.
+    fn fixed_time(secs: u64) -> SystemTime {
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs)
+    }
+
+    /// Collects the text of all pages of a compiled document.
+    fn page_text(doc: &PagedDocument) -> String {
+        let mut text = String::new();
+        for page in doc.pages() {
+            for (_, item) in page.frame.items() {
+                if let FrameItem::Text(text_item) = item {
+                    text.push_str(&text_item.text);
+                }
+            }
+        }
+        text
+    }
+
+    fn engine_with_time(
+        template: &str,
+        provider: impl TimeProvider + 'static,
+    ) -> TypstEngine<TypstTemplateMainFile> {
+        static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+        TypstEngine::builder()
+            .main_file(template)
+            .fonts([FONT])
+            .time_provider(provider)
+            .build()
+    }
+
+    #[test]
+    fn engine_time_provider_used_by_compile() {
+        // compile() (without the world builder) must use the engine's provider.
+        // 1_718_452_800 = 2024-06-15T12:00:00Z
+        let engine = engine_with_time(
+            "#datetime.today().display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800)),
+        );
+        let doc: PagedDocument = engine.compile().output.unwrap();
+        assert_eq!(page_text(&doc), "2024-06-15");
+    }
+
+    #[test]
+    fn world_build_uses_engine_time_provider() {
+        let engine = engine_with_time(
+            "#datetime.today().display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800)),
+        );
+        let world = engine.world_builder().build().unwrap();
+        let doc: PagedDocument = typst::compile(&world).output.unwrap();
+        assert_eq!(page_text(&doc), "2024-06-15");
+    }
+
+    #[test]
+    fn with_fixed_time_overrides_engine_time_provider() {
+        let engine = engine_with_time(
+            "#datetime.today().display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800)),
+        );
+        let world = engine
+            .world_builder()
+            .with_fixed_time(fixed_time(1_704_067_200)) // 2024-01-01T00:00:00Z
+            .build()
+            .unwrap();
+        let doc: PagedDocument = typst::compile(&world).output.unwrap();
+        assert_eq!(page_text(&doc), "2024-01-01");
+    }
+
+    #[test]
+    fn arc_wrapped_time_provider_can_be_shared() {
+        let clock = Arc::new(FixedTimeProvider::new(fixed_time(1_718_452_800)));
+        let engine = engine_with_time("#datetime.today().display()", Arc::clone(&clock));
+        let doc: PagedDocument = engine.compile().output.unwrap();
+        assert_eq!(page_text(&doc), "2024-06-15");
+        drop(engine);
+        // The caller keeps its handle after the engine is gone.
+        assert_eq!(clock.now(), fixed_time(1_718_452_800));
+    }
+
+    #[test]
+    fn today_offset_overflow_is_a_normal_error() {
+        // A template-controlled out-of-range offset must not panic the host;
+        // Typst reports it as a regular compile error instead.
+        let engine = engine_with_time(
+            "#datetime.today(offset: duration(days: 10000000)).display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800)),
+        );
+        let err = engine
+            .compile::<PagedDocument>()
+            .output
+            .expect_err("out-of-range offset must fail compilation, not panic");
+        let TypstAsLibError::TypstSource(diags) = err else {
+            panic!("expected TypstSource diagnostics");
+        };
+        assert!(
+            diags
+                .iter()
+                .any(|diag| diag.message.contains("unable to get the current date"))
+        );
+    }
+
+    #[test]
+    fn out_of_range_provider_time_is_a_normal_error() {
+        // ~15844 years after the Unix epoch (year ~17814) — beyond the
+        // `time` crate's year-9999 limit, but still representable as a
+        // `SystemTime` on all platforms (Windows' FILETIME range ends
+        // around year 30000, so larger values would already panic when
+        // constructing the `SystemTime` in this test). Building the world
+        // must not panic; Typst reports a normal error.
+        let engine = engine_with_time(
+            "#datetime.today().display()",
+            FixedTimeProvider::new(fixed_time(500_000_000_000)),
+        );
+        let err = engine
+            .compile::<PagedDocument>()
+            .output
+            .expect_err("out-of-range provider time must fail compilation, not panic");
+        let TypstAsLibError::TypstSource(diags) = err else {
+            panic!("expected TypstSource diagnostics");
+        };
+        assert!(
+            diags
+                .iter()
+                .any(|diag| diag.message.contains("unable to get the current date"))
+        );
+    }
+
+    #[test]
+    fn pre_epoch_provider_time_is_supported() {
+        // 1969-12-31 — before the Unix epoch, but within the `time` range.
+        let engine = engine_with_time(
+            "#datetime.today().display()",
+            FixedTimeProvider::new(SystemTime::UNIX_EPOCH - std::time::Duration::from_secs(86_400)),
+        );
+        let doc: PagedDocument = engine.compile::<PagedDocument>().output.unwrap();
+        assert_eq!(page_text(&doc), "1969-12-31");
+    }
+
+    #[test]
+    fn today_applies_full_offset() {
+        // 23:30 plus 45 minutes crosses midnight into the next day. The
+        // offset must not be truncated to whole hours.
+        let engine = engine_with_time(
+            "#datetime.today(offset: duration(minutes: 45)).display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800 + 41_400)), // 2024-06-15T23:30:00Z
+        );
+        let doc: PagedDocument = engine.compile().output.unwrap();
+        assert_eq!(page_text(&doc), "2024-06-16");
+    }
+
+    #[test]
+    fn today_applies_negative_offset() {
+        let engine = engine_with_time(
+            "#datetime.today(offset: duration(hours: -10)).display()",
+            FixedTimeProvider::new(fixed_time(1_718_452_800 - 25_200)), // 2024-06-15T05:00:00Z
+        );
+        let doc: PagedDocument = engine.compile().output.unwrap();
+        assert_eq!(page_text(&doc), "2024-06-14");
+    }
+
+    #[test]
+    fn arc_wrapped_resolver_can_be_shared() {
+        static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+        let shared = Arc::new(StaticSourceFileResolver::new([(
+            "main.typ",
+            "Shared resolver!",
+        )]));
+
+        let engine_a = TypstEngine::builder()
+            .fonts([FONT])
+            .add_file_resolver(Arc::clone(&shared))
+            .build();
+        let engine_b = TypstEngine::builder()
+            .fonts([FONT])
+            .add_file_resolver(Arc::clone(&shared))
+            .build();
+
+        let doc_a: PagedDocument = engine_a.compile("main.typ").output.unwrap();
+        let doc_b: PagedDocument = engine_b.compile("main.typ").output.unwrap();
+        assert_eq!(page_text(&doc_a), "Shared resolver!");
+        assert_eq!(page_text(&doc_b), "Shared resolver!");
     }
 }
