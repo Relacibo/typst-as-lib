@@ -3,6 +3,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use typst::{
     diag::{FileError, FileResult},
@@ -26,6 +27,18 @@ pub trait FileResolver {
     fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>>;
     /// Resolves a source file (e.g., `.typ` files).
     fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>>;
+}
+
+/// Shared ownership: `Arc<T>` delegates to `T`, so a resolver (e.g. one
+/// shared package cache) can be used by multiple engines.
+impl<T: FileResolver + ?Sized> FileResolver for Arc<T> {
+    fn resolve_binary(&self, id: FileId) -> FileResult<Cow<'_, Bytes>> {
+        (**self).resolve_binary(id)
+    }
+
+    fn resolve_source(&self, id: FileId) -> FileResult<Cow<'_, Source>> {
+        (**self).resolve_source(id)
+    }
 }
 
 #[derive(Debug, Clone)]

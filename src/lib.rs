@@ -565,6 +565,10 @@ impl<T> TypstTemplateEngineBuilder<T> {
     /// Adds a custom file resolver.
     ///
     /// Resolvers are tried in order until one successfully resolves the file.
+    ///
+    /// To share a resolver (e.g. one package cache) between multiple engines,
+    /// wrap it in `Arc` — [`Arc`](std::sync::Arc) implements [`FileResolver`]
+    /// via a blanket impl.
     pub fn add_file_resolver<F>(mut self, file_resolver: F) -> Self
     where
         F: FileResolver + Send + Sync + 'static,
@@ -962,5 +966,46 @@ impl FontEnum {
                 font_path.load()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use typst::layout::FrameItem;
+    use typst_layout::PagedDocument;
+
+    /// Collects the text of all pages of a compiled document.
+    fn page_text(doc: &PagedDocument) -> String {
+        let mut text = String::new();
+        for page in doc.pages() {
+            for (_, item) in page.frame.items() {
+                if let FrameItem::Text(text_item) = item {
+                    text.push_str(&text_item.text);
+                }
+            }
+        }
+        text
+    }
+
+    #[test]
+    fn arc_wrapped_resolver_can_be_shared() {
+        static FONT: &[u8] = include_bytes!("../examples/fonts/texgyrecursor-regular.otf");
+        let shared = Arc::new(StaticSourceFileResolver::new([("main.typ", "Shared resolver!")]));
+
+        let engine_a = TypstEngine::builder()
+            .fonts([FONT])
+            .add_file_resolver(Arc::clone(&shared))
+            .build();
+        let engine_b = TypstEngine::builder()
+            .fonts([FONT])
+            .add_file_resolver(Arc::clone(&shared))
+            .build();
+
+        let doc_a: PagedDocument = engine_a.compile("main.typ").output.unwrap();
+        let doc_b: PagedDocument = engine_b.compile("main.typ").output.unwrap();
+        assert_eq!(page_text(&doc_a), "Shared resolver!");
+        assert_eq!(page_text(&doc_b), "Shared resolver!");
     }
 }

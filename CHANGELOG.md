@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Added blanket impl `FileResolver for Arc<T>`, so resolvers (e.g. one shared package cache) can be used across multiple engines.
+
 ## [0.17.0] - 2026-10-07
 
 - **Breaking:** `TypstTemplateEngineBuilder::comemo_evict_max_age` now takes ownership of `self` and returns `Self`, consistent with the other builder methods. Code that chained this method after another builder call no longer fails to compile with "cannot move out of a mutable reference" (https://github.com/Relacibo/typst-as-lib/pull/58 by ta-vroom).
