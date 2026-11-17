@@ -1,59 +1,56 @@
 //! Fetches `@preview` packages ahead of compilation and feeds them into the
 //! engine as static resolvers.
 //!
-//! Typst's `World` is synchronous — it only does *blocking* IO, which
-//! browser WASM can't provide mid-compile (the event loop can't serve new
-//! data while the compile runs). Hosts therefore fetch packages *ahead* of
-//! the compile:
-//!
-//! 1. **Scan** the sources for package imports, transitively — packages
-//!    import packages. Skip malformed imports: never panic on
-//!    template-controlled input.
-//! 2. **Fetch** `https://packages.typst.org/preview/{name}-{version}.tar.gz`
-//!    with whatever client the host prefers (`fetch()` + IndexedDB in the
-//!    browser, tokio/reqwest-async on servers).
-//! 3. **Extract** the tar.gz (`flate2` + `binstall-tar`).
-//! 4. **Feed** the files into the engine: build `FileId`s via
-//!    `RootedPath::new(VirtualRoot::Package(spec), vpath).intern()`, register
-//!    `.typ` files with `with_static_source_file_resolver` and everything
-//!    else with `with_static_file_resolver` — *before* any other resolver,
-//!    since resolver order is try order.
-//!
-//! For servers that prefetch per compile, a custom `FileResolver`
-//! (`Mutex<HashMap<FileId, …>>`) replaces the static resolvers.
+//! Typst's `World` only does blocking IO, which browser WASM can't provide
+//! mid-compile — so hosts fetch packages ahead of the compile, host-side.
+//! How to fetch is the host's choice; this example uses blocking `ureq`.
 //!
 //! Run: `cargo run --features packages,ureq --example prefetch_packages`
 
 use std::collections::HashSet;
+use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 
 use binstall_tar::Archive;
-use typst::syntax::package::PackageSpec;
-use typst::syntax::{RootedPath, SyntaxNode, VirtualPath, VirtualRoot, ast};
+use typst::syntax::{
+    FileId, RootedPath, SyntaxNode, VirtualPath, VirtualRoot, ast, package::PackageSpec,
+};
 use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
-static FONT: &[u8] = include_bytes!("fonts/texgyrecursor-regular.otf");
-static TEMPLATE: &str = r#"#import "@preview/tablex:0.0.9": tablex
-#tablex(columns: (1fr, 1fr), [Prefetched], [packages!])
+static OUTPUT: &str = "./examples/output.pdf";
+static FONT: &[u8] = include_bytes!("./fonts/texgyrecursor-regular.otf");
+static TEMPLATE: &str = r#"#import "@preview/theorion:0.3.0": *
+#import cosmos.fancy: *
+#show: show-theorion
+
+#theorem(title: "Prefetched")[
+  This theorem box was rendered from a package fetched ahead of compilation —
+  and its dependency (showybox) was discovered transitively by the scan.
+]
 "#;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1) Scan: find package imports in the template, transitively.
+    // 1) Scan: find package imports in the template, transitively (theorion
+    //    pulls in showybox — packages import packages). Malformed imports are
+    //    skipped; a host must never panic on template-controlled input.
     let mut found: HashSet<PackageSpec> = HashSet::new();
     let mut queue: Vec<PackageSpec> = Vec::new();
     scan_packages(TEMPLATE, &mut found, &mut queue);
 
-    // 2) Fetch + extract, transitively: packages import packages.
-    let mut package_sources: Vec<(typst::syntax::FileId, String)> = Vec::new();
-    let mut package_binaries: Vec<(typst::syntax::FileId, Vec<u8>)> = Vec::new();
+    // 2) Fetch each package's tarball.
     let mut fetched: HashSet<PackageSpec> = HashSet::new();
+    let mut package_sources: Vec<(FileId, String)> = Vec::new();
+    let mut package_binaries: Vec<(FileId, Vec<u8>)> = Vec::new();
     while let Some(spec) = queue.pop() {
         if !fetched.insert(spec.clone()) {
             continue;
         }
         let tarball = fetch_package(&spec)?;
+
+        // 3) Extract — and scan the extracted sources: a template's packages
+        //    may pull in further packages.
         for (path, bytes) in extract(&tarball)? {
             let Ok(vpath) = VirtualPath::new(path.to_string_lossy().as_ref()) else {
                 continue;
@@ -70,12 +67,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    println!(
-        "prefetched {} package files",
-        package_sources.len() + package_binaries.len()
-    );
 
-    // 3) Feed: package resolvers first (resolver order = try order), then the
+    // 4) Feed: package resolvers first (resolver order = try order), then the
     //    template file. The engine compiles without any blocking IO.
     let engine = TypstEngine::builder()
         .with_static_source_file_resolver(package_sources)
@@ -84,21 +77,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fonts([FONT])
         .build();
 
-    let warned = engine.compile("main.typ");
-    for warning in &warned.warnings {
-        eprintln!("typst warning: {}", warning.message);
-    }
-    let doc: PagedDocument = warned.output?;
-    let mut text = String::new();
-    for page in doc.pages() {
-        collect_text(&page.frame, &mut text);
-    }
-    println!("pages: {}, text: {:?}", doc.pages().len(), text);
-    assert!(
-        text.contains("Prefetched"),
-        "expected table text, got: {text}"
-    );
-    println!("compiled with prefetched packages ✓");
+    let doc: PagedDocument = engine.compile("main.typ").output?;
+
+    let pdf = typst_pdf::pdf(&doc, &Default::default()).expect("Could not generate pdf.");
+    fs::write(OUTPUT, pdf)?;
+    println!("wrote {OUTPUT}");
     Ok(())
 }
 
@@ -112,17 +95,18 @@ fn scan_packages(text: &str, found: &mut HashSet<PackageSpec>, queue: &mut Vec<P
 fn walk_imports(node: &SyntaxNode, found: &mut HashSet<PackageSpec>, queue: &mut Vec<PackageSpec>) {
     if node.cast::<ast::ModuleImport>().is_some() || node.cast::<ast::ModuleInclude>().is_some() {
         for child in node.children() {
-            if let Some(str_node) = child.cast::<ast::Str>() {
-                let import = str_node.get();
-                if !import.starts_with('@') {
-                    continue;
-                }
-                let Some(spec) = parse_spec(&import) else {
-                    continue;
-                };
-                if found.insert(spec.clone()) {
-                    queue.push(spec);
-                }
+            let Some(str_node) = child.cast::<ast::Str>() else {
+                continue;
+            };
+            let import = str_node.get();
+            if !import.starts_with('@') {
+                continue;
+            }
+            let Ok(spec) = import.parse::<PackageSpec>() else {
+                continue;
+            };
+            if found.insert(spec.clone()) {
+                queue.push(spec);
             }
         }
         return;
@@ -130,22 +114,6 @@ fn walk_imports(node: &SyntaxNode, found: &mut HashSet<PackageSpec>, queue: &mut
     for child in node.children() {
         walk_imports(child, found, queue);
     }
-}
-
-/// Parses `@namespace/name:version`, tolerating a path suffix
-/// (`@preview/pkg:0.1.0/chapter.typ`), which imports from within packages use.
-fn parse_spec(text: &str) -> Option<PackageSpec> {
-    if let Ok(spec) = text.parse() {
-        return Some(spec);
-    }
-    let mut end = text.len();
-    while let Some(position) = text[..end].rfind('/') {
-        if let Ok(spec) = text[..position].parse() {
-            return Some(spec);
-        }
-        end = position;
-    }
-    None
 }
 
 /// Only the `preview` namespace is hosted on the package CDN; `@local`
@@ -159,44 +127,18 @@ fn fetch_package(spec: &PackageSpec) -> Result<Vec<u8>, Box<dyn std::error::Erro
         spec.name, spec.version
     );
     println!("fetching {url}");
-    let response = ureq::get(&url)
-        .call()
-        .map_err(Box::<dyn std::error::Error>::from)?;
-    Ok(response.into_body().read_to_vec()?)
-}
-
-/// Collects text from a frame and all nested frames (tables/grids render as
-/// nested groups).
-fn collect_text(frame: &typst::layout::Frame, out: &mut String) {
-    for (_, item) in frame.items() {
-        use typst::layout::FrameItem;
-        match item {
-            FrameItem::Text(text) => out.push_str(&text.text),
-            FrameItem::Group(group) => {
-                collect_text(&group.frame, out);
-            }
-            _ => {}
-        }
-    }
+    Ok(ureq::get(&url).call()?.into_body().read_to_vec()?)
 }
 
 type TarEntry = (PathBuf, Vec<u8>);
 
 fn extract(tarball: &[u8]) -> Result<Vec<TarEntry>, Box<dyn std::error::Error>> {
     let mut files = Vec::new();
-    for entry in Archive::new(flate2::read::GzDecoder::new(tarball))
-        .entries()
-        .map_err(Box::<dyn std::error::Error>::from)?
-    {
-        let mut entry = entry.map_err(Box::<dyn std::error::Error>::from)?;
-        let path = entry
-            .path()
-            .map_err(Box::<dyn std::error::Error>::from)?
-            .to_path_buf();
+    for entry in Archive::new(flate2::read::GzDecoder::new(tarball)).entries()? {
+        let mut entry = entry?;
+        let path = entry.path()?.to_path_buf();
         let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(Box::<dyn std::error::Error>::from)?;
+        entry.read_to_end(&mut bytes)?;
         files.push((path, bytes));
     }
     Ok(files)
