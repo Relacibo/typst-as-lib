@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.18.0] - 2026-11-17
 
 - **Breaking:** `TypstAsLibError::TypstSource` now carries `diagnostic::SourceDiagnostics` instead of a raw `EcoVec<SourceDiagnostic>`. Its `Display` is a human-readable report with file/line/column locations, traceback and hints; locations can also be resolved individually via `SourceDiagnostics::location`, without a world. The raw diagnostics stay accessible through `Deref<Target = [SourceDiagnostic]>`. `SourceDiagnostics::new` is public, so users of `with_world` can wrap warnings the same way. The `From<EcoVec<SourceDiagnostic>>` impl for `TypstAsLibError` was removed. (https://github.com/Relacibo/typst-as-lib/pull/53 by lukas-loering)
 
