@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.17.1] - 2026-11-17
 
 - Added time providers for `datetime.today()`: new module `time` with the `TimeProvider` trait, `SystemTimeProvider` (default) and `FixedTimeProvider`. The provider is set on the engine via `TypstTemplateEngineBuilder::time_provider`, is queried once per compilation and used by every compilation method. `TypstWorldBuilder::with_fixed_time` overrides it for a single compilation. The public API uses `std::time::SystemTime`; chrono is no longer a dependency (the `time` crate is used internally). `Arc<T>` and `Box<T>` implement `TimeProvider` via blanket impls, so shared clocks (e.g. steerable test clocks) can be passed with `Arc::clone`.
 - Fixed `World::today()`: offsets containing minutes/seconds are now fully applied (previously truncated to whole hours), negative offsets are applied correctly, and out-of-range offsets no longer panic the host — `World::today` returns `None` and Typst reports a normal compile error.
