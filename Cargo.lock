@@ -476,6 +476,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d57d423b3c82e89b9a24ca3091fee61f456a26edbd28d26c65906f4bc1dcd8f"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs-sys"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3137,7 +3146,7 @@ dependencies = [
  "binstall-tar",
  "bytes",
  "comemo",
- "dirs",
+ "dirs 7.0.0",
  "ecow",
  "flate2",
  "reqwest",
@@ -3209,7 +3218,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55a24650fc436d32deb55b49fd63f7bcad3a864c96f52587b9934c85e0092d6f"
 dependencies = [
- "dirs",
+ "dirs 6.0.0",
  "ecow",
  "fontdb",
  "once_cell",
